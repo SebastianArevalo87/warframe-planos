@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { ItemSummary } from "./lib/catalogRemote.ts";
 import type { CatalogItem, CatalogPart } from "./types.ts";
 import { fetchPrice, type PriceQuote } from "./lib/market.ts";
 
@@ -111,6 +112,35 @@ export function ItemCard({
           ))}
         </ul>
       )}
+    </article>
+  );
+}
+
+export function ItemSummaryRow({ item, onOpen }: { item: ItemSummary; onOpen: () => void }) {
+  const complete = item.built || (item.partCount === 0 && item.ownedItem);
+  const ready = item.partCount > 0 && !item.built && item.ownedCount === item.partCount;
+  return (
+    <article className="flex items-center gap-3 rounded-2xl border border-line bg-panel/90 px-3 py-2">
+      {item.image && <ItemImage src={item.image} compact />}
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">{KIND_LABEL[item.kind]}</span>
+          {item.vaulted && <span className="text-[11px] text-clay">En la bóveda</span>}
+          {ready && <span className="text-[11px] text-moss">Listo para fundir</span>}
+          {complete && <span className="text-[11px] text-moss">Completo</span>}
+        </div>
+        <h2 className="truncate text-base font-medium text-bone">{item.name}</h2>
+        <p className="text-sm text-mute">
+          {item.partCount > 0 ? `${item.ownedCount} de ${item.partCount} planos` : complete ? "Lo tengo" : "Sin piezas sueltas"}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="shrink-0 rounded-full border border-line px-3 py-2 text-sm text-bone hover:border-gold"
+      >
+        Ver
+      </button>
     </article>
   );
 }

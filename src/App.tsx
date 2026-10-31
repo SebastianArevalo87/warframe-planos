@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import type { Catalog, CatalogItem, Collection, Draft, KindFilter, StatusFilter } from "./types.ts";
-import { loadCollection, loadDraft, loadStoredCatalog, saveCollection, saveDraft, saveStoredCatalog } from "./lib/storage.ts";
+import type { CatalogItem, Collection, Draft, KindFilter, StatusFilter } from "./types.ts";
+import { loadCollection, loadDraft, saveCollection, saveDraft } from "./lib/storage.ts";
 import { loadProfile, masteryValue, saveProfile, type Profile, type Session } from "./lib/account.ts";
 import { loadOrCreateRemote, saveRemoteAccount } from "./lib/remote.ts";
 import { sessionFromUser, supabase, supabaseEnabled } from "./lib/supabase.ts";
+import { fetchDashboard, fetchItemDetail, fetchItemList, storeCatalog, type DashboardStats, type ItemSummary } from "./lib/catalogRemote.ts";
 import { refreshCatalog } from "./lib/refreshCatalog.ts";
-import { ItemCard } from "./ItemCard.tsx";
+import { ItemCard, ItemSummaryRow } from "./ItemCard.tsx";
 import { Gate, LoginScreen } from "./Login.tsx";
 
 const KIND_FILTERS: Array<{ id: KindFilter; label: string }> = [
@@ -23,59 +24,6 @@ const STATUS_FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: "all", label: "Todos" },
 ];
 
-function fold(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-function matchesWords(haystack: string, needle: string): boolean {
-  const words = fold(needle).split(/\s+/).filter(Boolean);
-  const text = fold(haystack);
-  return words.every((word) => text.includes(word));
-}
-
-function isComplete(item: CatalogItem, collection: Collection): boolean {
-  if (collection.built.includes(item.id)) return true;
-  if (item.parts.length === 0) return collection.items.includes(item.id);
-  return false;
-}
-
-function ownedPartCount(item: CatalogItem, owned: Set<string>, draft: Set<string>): number {
-  return item.parts.filter((part) => owned.has(part.id) || draft.has(part.id)).length;
-}
-
-function copyMissingImages(catalog: Catalog, images: Catalog): Catalog {
-  const itemImages = new Map(images.items.map((item) => [item.id, item.image]));
-  const partImages = new Map<string, string>();
-  for (const item of images.items) {
-    for (const part of item.parts) {
-      if (part.image) partImages.set(part.id, part.image);
-    }
-  }
-  let filled = false;
-  const items = catalog.items.map((item) => {
-    const image = item.image || itemImages.get(item.id) || null;
-    const parts = item.parts.map((part) => {
-      if (part.image) return part;
-      const partImage = partImages.get(part.id);
-      if (!partImage) return part;
-      filled = true;
-      return { ...part, image: partImage };
-    });
-    if (!item.image && image) filled = true;
-    if (image === item.image && parts === item.parts) return item;
-    return { ...item, image, parts };
-  });
-  return filled ? { ...catalog, items } : catalog;
-}
-
-function isReady(item: CatalogItem, collection: Collection, draft: Set<string>): boolean {
-  if (isComplete(item, collection) || item.parts.length === 0) return false;
-  return ownedPartCount(item, new Set(collection.parts), draft) === item.parts.length;
-}
-
 function profileForm(profile: Profile) {
   return {
     warframeAccount: profile.warframeAccount,
@@ -83,8 +31,11 @@ function profileForm(profile: Profile) {
   };
 }
 
+function listingRequested(kind: KindFilter, query: string, status: StatusFilter) {
+  return kind !== "all" || query.trim().length >= 2 || status === "ready";
+}
+
 export function App() {
-  const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!supabaseEnabled);
   const [accountReady, setAccountReady] = useState(!supabaseEnabled);
@@ -102,25 +53,16 @@ export function App() {
   const [notice, setNotice] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [rows, setRows] = useState<ItemSummary[]>([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [savedTick, setSavedTick] = useState(0);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [openId, setOpenId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("item"));
+  const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
-
-  useEffect(() => {
-    const stored = loadStoredCatalog();
-    void fetch(`${import.meta.env.BASE_URL}catalog.json`)
-      .then((response) => {
-        if (!response.ok) throw new Error("catalog");
-        return response.json() as Promise<Catalog>;
-      })
-      .then((bundled) => {
-        if (stored && stored.generatedAt > bundled.generatedAt) setCatalog(copyMissingImages(stored, bundled));
-        else setCatalog(bundled);
-      })
-      .catch(() => {
-        if (stored) setCatalog(stored);
-        else setLoadError("No pude abrir el catálogo de planos.");
-      });
-  }, []);
 
   useEffect(() => {
     saveDraft(draft);
@@ -173,42 +115,84 @@ export function App() {
   const built = useMemo(() => new Set(collection.built), [collection.built]);
   const ownedItems = useMemo(() => new Set(collection.items), [collection.items]);
 
-  const visible = useMemo(() => {
-    if (!catalog) return [];
-    const needle = query.trim().toLowerCase();
-    return catalog.items.flatMap((item) => {
-      if (kindFilter !== "all" && item.kind !== kindFilter) return [];
-      const complete = isComplete(item, collection);
-      const ready = isReady(item, collection, draftParts);
-      if (statusFilter === "missing" && complete) return [];
-      if (statusFilter === "ready" && !ready) return [];
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
 
-      if (!needle) return [{ item, visiblePartIds: null as string[] | null }];
-      const parentHit = matchesWords(item.name, needle);
-      if (parentHit) return [{ item, visiblePartIds: null }];
-      const partIds = item.parts
-        .filter((part) => matchesWords(`${part.title} ${part.short} ${part.english}`, needle))
-        .map((part) => part.id);
-      if (partIds.length === 0) return [];
-      return [{ item, visiblePartIds: partIds }];
-    });
-  }, [catalog, collection, draftParts, kindFilter, query, statusFilter]);
-
-  const progress = useMemo(() => {
-    const items = catalog?.items ?? [];
-    const frames = items.filter((item) => item.kind === "warframe");
-    const weapons = items.filter((item) => item.kind !== "warframe");
-    return {
-      frames: frames.filter((item) => isComplete(item, collection)).length,
-      frameTotal: frames.length,
-      weapons: weapons.filter((item) => isComplete(item, collection)).length,
-      weaponTotal: weapons.length,
+  useEffect(() => {
+    if (!accountReady || !supabaseEnabled) return;
+    let cancelled = false;
+    void fetchDashboard()
+      .then((next) => {
+        if (!cancelled) setStats(next);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError("No pude abrir el tablero.");
+      });
+    return () => {
+      cancelled = true;
     };
-  }, [catalog, collection]);
+  }, [accountReady, savedTick]);
+
+  useEffect(() => {
+    if (!accountReady || !supabaseEnabled) return;
+    if (!listingRequested(kindFilter, debouncedQuery, statusFilter)) {
+      setRows([]);
+      setListLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setListLoading(true);
+    setLoadError("");
+    void fetchItemList(kindFilter, debouncedQuery.trim(), statusFilter)
+      .then((next) => {
+        if (!cancelled) setRows(next);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError("No pude abrir esa lista.");
+      })
+      .finally(() => {
+        if (!cancelled) setListLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountReady, kindFilter, debouncedQuery, statusFilter, savedTick]);
+
+  useEffect(() => {
+    function onPop() {
+      setOpenId(new URLSearchParams(window.location.search).get("item"));
+    }
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
+    if (!openId || !accountReady) {
+      setOpenItem(null);
+      return;
+    }
+    let cancelled = false;
+    setDetailLoading(true);
+    void fetchItemDetail(openId)
+      .then((item) => {
+        if (!cancelled) setOpenItem(item);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError("No pude abrir ese plano.");
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [openId, accountReady]);
 
   const virtualizer = useWindowVirtualizer({
-    count: visible.length,
-    estimateSize: () => 220,
+    count: openId ? 0 : rows.length,
+    estimateSize: () => 96,
     overscan: 8,
     scrollMargin,
   });
@@ -238,9 +222,11 @@ export function App() {
       mastery: masteryValue(nextProfile.mastery),
     };
     if (supabaseEnabled && session) {
-      void saveRemoteAccount(session.sub, { ...stored, collection: next }).catch(() => {
-        setNotice("No pude guardar la lista. Inténtalo otra vez.");
-      });
+      void saveRemoteAccount(session.sub, { ...stored, collection: next })
+        .then(() => setSavedTick((tick) => tick + 1))
+        .catch(() => {
+          setNotice("No pude guardar la lista. Inténtalo otra vez.");
+        });
       return;
     }
     saveCollection(next);
@@ -325,19 +311,31 @@ export function App() {
     writeAccount({ ...collection, parts: collection.parts.filter((partId) => partId !== id) });
   }
 
+  function showItem(id: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("item", id);
+    window.history.pushState({ item: id }, "", url);
+    setOpenId(id);
+  }
+
+  function hideItem() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("item");
+    window.history.pushState({}, "", url);
+    setOpenId(null);
+  }
+
   async function updateList() {
-    if (!catalog) return;
     setRefreshing(true);
     setNotice("");
     try {
-      const previous = new Set(catalog.items.map((item) => item.id));
-      const next = await refreshCatalog(catalog);
-      const added = next.items.filter((item) => !previous.has(item.id));
-      saveStoredCatalog(next);
-      setCatalog(next);
+      const next = await refreshCatalog();
+      const added = await storeCatalog(next);
+      setStats(await fetchDashboard());
+      setSavedTick((tick) => tick + 1);
       setNotice(
-        added.length > 0
-          ? `Se agregaron ${added.length} ${added.length === 1 ? "entrada nueva" : "entradas nuevas"}.`
+        added > 0
+          ? `Se agregaron ${added} ${added === 1 ? "entrada nueva" : "entradas nuevas"}.`
           : "La lista ya estaba al día.",
       );
     } catch {
@@ -375,10 +373,10 @@ export function App() {
           </div>
           <div className="text-right text-sm text-mute">
             <p>
-              Warframes <span className="text-bone">{progress.frames}</span>/{progress.frameTotal}
+              Warframes <span className="text-bone">{stats?.frames ?? 0}</span>/{stats?.frameTotal ?? 0}
             </p>
             <p>
-              Armas <span className="text-bone">{progress.weapons}</span>/{progress.weaponTotal}
+              Armas <span className="text-bone">{stats?.weapons ?? 0}</span>/{stats?.weaponTotal ?? 0}
             </p>
           </div>
         </div>
@@ -424,15 +422,18 @@ export function App() {
           {accountHint && <p className="mt-2 text-xs text-clay">{accountHint}</p>}
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <Meter label="Warframes" value={progress.frames} total={progress.frameTotal} />
-          <Meter label="Armas" value={progress.weapons} total={progress.weaponTotal} />
+          <Meter label="Warframes" value={stats?.frames ?? 0} total={stats?.frameTotal ?? 0} />
+          <Meter label="Armas" value={stats?.weapons ?? 0} total={stats?.weaponTotal ?? 0} />
         </div>
 
         <label className="mt-4 block">
           <span className="sr-only">Buscar un plano</span>
           <input
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              if (openId) hideItem();
+            }}
             placeholder="Busca Braton, neurópticas, cañón…"
             className="w-full rounded-2xl border border-line bg-panel px-4 py-3 text-base text-bone outline-none placeholder:text-mute/70 focus:border-gold"
           />
@@ -444,7 +445,10 @@ export function App() {
               key={filter.id}
               active={statusFilter === filter.id}
               label={filter.label}
-              onClick={() => setStatusFilter(filter.id)}
+              onClick={() => {
+                setStatusFilter(filter.id);
+                if (openId) hideItem();
+              }}
             />
           ))}
         </div>
@@ -454,7 +458,10 @@ export function App() {
               key={filter.id}
               active={kindFilter === filter.id}
               label={filter.label}
-              onClick={() => setKindFilter(filter.id)}
+              onClick={() => {
+                setKindFilter(filter.id);
+                if (openId) hideItem();
+              }}
             />
           ))}
         </div>
@@ -463,7 +470,7 @@ export function App() {
           <button
             type="button"
             onClick={() => void updateList()}
-            disabled={refreshing || !catalog}
+            disabled={refreshing}
             className="rounded-full border border-line px-3 py-2 text-sm text-bone hover:border-gold disabled:opacity-50"
           >
             {refreshing ? "Actualizando…" : "Actualizar lista"}
@@ -500,53 +507,70 @@ export function App() {
           </p>
         )}
         {notice && <p className="mt-2 text-sm text-mute">{notice}</p>}
-        {catalog && (
+        {stats?.sourceVersion && (
           <p className="mt-2 text-xs text-mute/80">
-            Catálogo {catalog.sourceVersion} ·{" "}
-            {new Date(catalog.generatedAt).toLocaleDateString("es", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
+            {stats.partTotal} planos en la base
+            {stats.ready > 0 ? ` · ${stats.ready} listos para fundir` : ""} · catálogo {stats.sourceVersion}
           </p>
         )}
       </header>
 
       <div ref={listRef}>
         {loadError && <p className="text-clay">{loadError}</p>}
-        {!catalog && !loadError && <p className="text-mute">Abriendo la lista de planos…</p>}
-        {catalog && visible.length === 0 && (
-          <p className="text-mute">Ningún plano coincide con esta búsqueda.</p>
+        {openId ? (
+          <div className="pb-8">
+            <button type="button" onClick={hideItem} className="mb-3 text-sm text-gold">
+              Volver al tablero
+            </button>
+            {detailLoading && <p className="text-mute">Abriendo el plano…</p>}
+            {!detailLoading && !openItem && <p className="text-mute">Ese plano no está en la base.</p>}
+            {openItem && (
+              <ItemCard
+                item={openItem}
+                visiblePartIds={null}
+                ownedParts={ownedParts}
+                draftParts={draftParts}
+                built={built.has(openItem.id)}
+                ownedItem={ownedItems.has(openItem.id)}
+                onPickPart={pickPart}
+                onUnpickDraft={unpickDraft}
+                onForgetPart={forgetPart}
+                onToggleBuilt={() => toggleBuilt(openItem.id)}
+                onToggleOwnedItem={() => toggleOwnedItem(openItem.id)}
+              />
+            )}
+          </div>
+        ) : (
+          <>
+            {!listingRequested(kindFilter, debouncedQuery, statusFilter) && (
+              <p className="text-mute">
+                Elige Warframes, Primarias, Secundarias o Melee, o escribe un nombre. También puedes ver los que están
+                listos para fundir.
+              </p>
+            )}
+            {listLoading && <p className="text-mute">Buscando…</p>}
+            {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && rows.length === 0 && (
+              <p className="text-mute">Ningún plano coincide con este filtro.</p>
+            )}
+            <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const row = rows[virtualRow.index];
+                if (!row) return null;
+                return (
+                  <div
+                    key={row.id}
+                    ref={virtualizer.measureElement}
+                    data-index={virtualRow.index}
+                    className="absolute top-0 left-0 w-full pb-3"
+                    style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
+                  >
+                    <ItemSummaryRow item={row} onOpen={() => showItem(row.id)} />
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
-        <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-          {virtualizer.getVirtualItems().map((virtualRow) => {
-            const row = visible[virtualRow.index];
-            if (!row) return null;
-            return (
-              <div
-                key={row.item.id}
-                ref={virtualizer.measureElement}
-                data-index={virtualRow.index}
-                className="absolute top-0 left-0 w-full pb-3"
-                style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
-              >
-                <ItemCard
-                  item={row.item}
-                  visiblePartIds={row.visiblePartIds}
-                  ownedParts={ownedParts}
-                  draftParts={draftParts}
-                  built={built.has(row.item.id)}
-                  ownedItem={ownedItems.has(row.item.id)}
-                  onPickPart={pickPart}
-                  onUnpickDraft={unpickDraft}
-                  onForgetPart={forgetPart}
-                  onToggleBuilt={() => toggleBuilt(row.item.id)}
-                  onToggleOwnedItem={() => toggleOwnedItem(row.item.id)}
-                />
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );

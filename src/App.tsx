@@ -1,5 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CatalogItem, Collection, Draft, KindFilter, StatusFilter } from "./types.ts";
 import { loadCollection, loadDraft, saveCollection, saveDraft } from "./lib/storage.ts";
 import { loadProfile, masteryValue, saveProfile, type Profile, type Session } from "./lib/account.ts";
@@ -7,7 +6,7 @@ import { loadOrCreateRemote, saveRemoteAccount } from "./lib/remote.ts";
 import { sessionFromUser, supabase, supabaseEnabled } from "./lib/supabase.ts";
 import { fetchDashboard, fetchItemDetail, fetchItemList, storeCatalog, type DashboardStats, type ItemSummary } from "./lib/catalogRemote.ts";
 import { refreshCatalog } from "./lib/refreshCatalog.ts";
-import { ItemCard, ItemSummaryRow } from "./ItemCard.tsx";
+import { ItemCard, ItemTile } from "./ItemCard.tsx";
 import { Gate, LoginScreen } from "./Login.tsx";
 
 const KIND_FILTERS: Array<{ id: KindFilter; label: string }> = [
@@ -60,11 +59,9 @@ export function App() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("item"));
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
+  const [detailLoading, setDetailLoading] = useState(() => Boolean(new URLSearchParams(window.location.search).get("item")));
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [scrollMargin, setScrollMargin] = useState(0);
 
   useEffect(() => {
     saveDraft(draft);
@@ -180,7 +177,9 @@ export function App() {
 
   useEffect(() => {
     function onPop() {
-      setOpenId(new URLSearchParams(window.location.search).get("item"));
+      const next = new URLSearchParams(window.location.search).get("item");
+      setOpenId(next);
+      setDetailLoading(Boolean(next));
     }
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -207,23 +206,6 @@ export function App() {
       cancelled = true;
     };
   }, [openId, accountReady]);
-
-  const virtualizer = useWindowVirtualizer({
-    count: openId ? 0 : rows.length,
-    estimateSize: () => 96,
-    overscan: 8,
-    scrollMargin,
-  });
-
-  useLayoutEffect(() => {
-    const measure = () => {
-      const next = listRef.current?.offsetTop ?? 0;
-      setScrollMargin((current) => (current === next ? current : next));
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  });
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -333,6 +315,7 @@ export function App() {
     const url = new URL(window.location.href);
     url.searchParams.set("item", id);
     window.history.pushState({ item: id }, "", url);
+    setDetailLoading(true);
     setOpenId(id);
   }
 
@@ -555,7 +538,7 @@ export function App() {
         )}
       </header>
 
-      <div ref={listRef}>
+      <div>
         {loadError && <p className="text-clay">{loadError}</p>}
         {openId ? (
           <div className="pb-8">
@@ -564,7 +547,7 @@ export function App() {
             </button>
             {detailLoading && <p className="text-mute">Abriendo el plano…</p>}
             {!detailLoading && !openItem && <p className="text-mute">Ese plano no está en la base.</p>}
-            {openItem && (
+            {!detailLoading && openItem && (
               <ItemCard
                 item={openItem}
                 visiblePartIds={null}
@@ -592,22 +575,10 @@ export function App() {
             {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && rows.length === 0 && (
               <p className="text-mute">Ningún plano coincide con este filtro.</p>
             )}
-            <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-              {virtualizer.getVirtualItems().map((virtualRow) => {
-                const row = rows[virtualRow.index];
-                if (!row) return null;
-                return (
-                  <div
-                    key={row.id}
-                    ref={virtualizer.measureElement}
-                    data-index={virtualRow.index}
-                    className="absolute top-0 left-0 w-full pb-3"
-                    style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
-                  >
-                    <ItemSummaryRow item={row} onOpen={() => showItem(row.id)} />
-                  </div>
-                );
-              })}
+            <div className="grid grid-cols-2 gap-3">
+              {rows.map((row) => (
+                <ItemTile key={row.id} item={row} onOpen={() => showItem(row.id)} />
+              ))}
             </div>
           </>
         )}

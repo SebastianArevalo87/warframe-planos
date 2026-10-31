@@ -116,32 +116,57 @@ export function ItemCard({
   );
 }
 
-export function ItemSummaryRow({ item, onOpen }: { item: ItemSummary; onOpen: () => void }) {
-  const complete = item.built || (item.partCount === 0 && item.ownedItem);
-  const ready = item.partCount > 0 && !item.built && item.ownedCount === item.partCount;
+function tileProgress(item: ItemSummary): { label: string; tone: "built" | "ready" | "few" | "partial" | "none" } {
+  if (item.built || (item.partCount === 0 && item.ownedItem)) return { label: "Construido", tone: "built" };
+  if (item.partCount === 0 || item.ownedCount === 0) return { label: "Falta todo", tone: "none" };
+  if (item.ownedCount === item.partCount) return { label: "Listo para fundir", tone: "ready" };
+  const missing = item.partCount - item.ownedCount;
+  if (missing <= 2) return { label: missing === 1 ? "Falta 1 plano" : "Faltan 2 planos", tone: "few" };
+  return { label: `Faltan ${missing} planos`, tone: "partial" };
+}
+
+const TILE_FRAME = {
+  built: "border-moss/80",
+  ready: "border-moss/80",
+  few: "border-gold",
+  partial: "border-clay/80",
+  none: "border-line",
+} as const;
+
+const TILE_BADGE = {
+  built: "bg-moss/25 text-moss",
+  ready: "bg-moss/25 text-moss",
+  few: "bg-gold/20 text-gold",
+  partial: "bg-clay/20 text-clay",
+  none: "bg-ink/80 text-mute",
+} as const;
+
+export function ItemTile({ item, onOpen }: { item: ItemSummary; onOpen: () => void }) {
+  const progress = tileProgress(item);
   return (
-    <article className="flex items-center gap-3 rounded-2xl border border-line bg-panel/90 px-3 py-2">
-      {item.image && <ItemImage src={item.image} compact />}
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">{KIND_LABEL[item.kind]}</span>
-          {item.vaulted && <span className="text-[11px] text-clay">En la bóveda</span>}
-          {ready && <span className="text-[11px] text-moss">Listo para fundir</span>}
-          {complete && <span className="text-[11px] text-moss">Completo</span>}
-        </div>
-        <h2 className="truncate text-base font-medium text-bone">{item.name}</h2>
-        <p className="text-sm text-mute">
-          {item.partCount > 0 ? `${item.ownedCount} de ${item.partCount} planos` : complete ? "Lo tengo" : "Sin piezas sueltas"}
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={onOpen}
-        className="shrink-0 rounded-full border border-line px-3 py-2 text-sm text-bone hover:border-gold"
-      >
-        Ver
-      </button>
-    </article>
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`${item.name}. ${progress.label}`}
+      className={`relative aspect-square w-full overflow-hidden rounded-2xl border bg-ink text-left ${TILE_FRAME[progress.tone]}`}
+    >
+      {item.image && (
+        <img
+          src={item.image}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className={`absolute inset-0 h-full w-full object-contain p-3 ${progress.tone === "none" ? "opacity-45" : ""}`}
+        />
+      )}
+      <span className={`absolute top-2 left-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${TILE_BADGE[progress.tone]}`}>
+        {progress.label}
+      </span>
+      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/85 to-transparent px-2.5 pt-10 pb-2.5">
+        <span className="block truncate text-sm font-medium text-bone">{item.name}</span>
+        {item.vaulted && <span className="text-[10px] text-clay">En la bóveda</span>}
+      </span>
+    </button>
   );
 }
 

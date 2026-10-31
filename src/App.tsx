@@ -6,6 +6,7 @@ import { loadOrCreateRemote, saveRemoteAccount } from "./lib/remote.ts";
 import { sessionFromUser, supabase, supabaseEnabled } from "./lib/supabase.ts";
 import { fetchDashboard, fetchItemDetail, fetchItemList, storeCatalog, type DashboardStats, type ItemSummary } from "./lib/catalogRemote.ts";
 import { refreshCatalog } from "./lib/refreshCatalog.ts";
+import { Dashboard } from "./Dashboard.tsx";
 import { ItemCard, ItemTile } from "./ItemCard.tsx";
 import { Gate, LoginScreen } from "./Login.tsx";
 
@@ -30,6 +31,20 @@ function profileForm(profile: Profile) {
   };
 }
 
+type AppPage = "home" | "search";
+
+function readPage(): AppPage {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  let path = window.location.pathname;
+  if (base && path.startsWith(base)) path = path.slice(base.length) || "/";
+  return path === "/buscar" || path.startsWith("/buscar/") ? "search" : "home";
+}
+
+function pagePath(page: AppPage) {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  return page === "search" ? `${base}/buscar` : `${base}/` || "/";
+}
+
 function listingRequested(kind: KindFilter, query: string, status: StatusFilter) {
   return kind !== "all" || query.trim().length >= 2 || status === "ready";
 }
@@ -45,6 +60,7 @@ export function App() {
   const [profile, setProfile] = useState(() =>
     profileForm(supabaseEnabled ? { warframeAccount: "", mastery: null } : loadProfile()),
   );
+  const [page, setPage] = useState<AppPage>(readPage);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("missing");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
@@ -150,7 +166,7 @@ export function App() {
   }, [accountReady, savedTick]);
 
   useEffect(() => {
-    if (!accountReady || !supabaseEnabled) return;
+    if (!accountReady || !supabaseEnabled || page !== "search") return;
     const request = ++listRequest.current;
     if (!listingRequested(kindFilter, debouncedQuery, statusFilter)) {
       setRows([]);
@@ -177,13 +193,13 @@ export function App() {
       .finally(() => {
         if (listRequest.current === request) setListLoading(false);
       });
-  }, [accountReady, kindFilter, debouncedQuery, statusFilter, listReload]);
+  }, [accountReady, kindFilter, debouncedQuery, statusFilter, listReload, page]);
 
   const hasMore = rows.length < listTotal;
 
   useEffect(() => {
     const node = sentinelRef.current;
-    if (!node || !hasMore || listLoading || loadingMore || openId) return;
+    if (page !== "search" || !node || !hasMore || listLoading || loadingMore || openId) return;
     const request = listRequest.current;
     const offset = rows.length;
     const observer = new IntersectionObserver(
@@ -211,10 +227,11 @@ export function App() {
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [hasMore, listLoading, loadingMore, openId, rows.length, kindFilter, debouncedQuery, statusFilter]);
+  }, [hasMore, listLoading, loadingMore, openId, rows.length, kindFilter, debouncedQuery, statusFilter, page]);
 
   useEffect(() => {
     function onPop() {
+      setPage(readPage());
       const next = new URLSearchParams(window.location.search).get("item");
       setOpenId(next);
       setDetailLoading(Boolean(next));
@@ -337,6 +354,16 @@ export function App() {
     patchOpenRow({ ownedCount: openItem.parts.filter((part) => ownedParts.has(part.id) && part.id !== id).length });
   }
 
+  function openPage(next: AppPage) {
+    const url = new URL(window.location.href);
+    url.pathname = pagePath(next);
+    url.searchParams.delete("item");
+    window.history.pushState({}, "", url);
+    setPage(next);
+    setOpenId(null);
+    window.scrollTo({ top: 0 });
+  }
+
   function showItem(id: string) {
     const url = new URL(window.location.href);
     url.searchParams.set("item", id);
@@ -396,19 +423,11 @@ export function App() {
       <header className="pt-6 pb-4">
         <div ref={accountMenuRef} className="relative">
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <button type="button" onClick={() => openPage("home")} className="text-left">
               <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
               <h1 className="text-3xl font-medium text-bone">Planos</h1>
-            </div>
+            </button>
             <div className="flex items-start gap-3">
-              <div className="hidden pt-1 text-right text-sm text-mute sm:block">
-                <p>
-                  Warframes <span className="text-bone">{stats?.frames ?? 0}</span>/{stats?.frameTotal ?? 0}
-                </p>
-                <p>
-                  Armas <span className="text-bone">{stats?.weapons ?? 0}</span>/{stats?.weaponTotal ?? 0}
-                </p>
-              </div>
               <button
                 type="button"
                 aria-expanded={accountOpen}
@@ -471,12 +490,42 @@ export function App() {
             </div>
           )}
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <Meter label="Warframes" value={stats?.frames ?? 0} total={stats?.frameTotal ?? 0} />
-          <Meter label="Armas" value={stats?.weapons ?? 0} total={stats?.weaponTotal ?? 0} />
-        </div>
+        <nav className="mt-4 flex gap-2" aria-label="Secciones">
+          <PageTab active={page === "home"} label="Tablero" onClick={() => openPage("home")} />
+          <PageTab active={page === "search"} label="Buscar" onClick={() => openPage("search")} />
+        </nav>
+        {notice && <p className="mt-3 text-sm text-mute">{notice}</p>}
+      </header>
 
-        <label className="mt-4 block">
+      {page === "home" ? (
+        <div className="flex flex-col gap-6">
+          {loadError && <p className="text-clay">{loadError}</p>}
+          <Dashboard
+            stats={stats}
+            accountName={profile.warframeAccount.trim()}
+            mastery={profile.mastery.trim()}
+            onOpen={showItem}
+            onSearchReady={() => {
+              setStatusFilter("ready");
+              setKindFilter("all");
+              openPage("search");
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => void updateList()}
+            disabled={refreshing}
+            className="self-start rounded-full border border-line px-3 py-2 text-sm text-bone hover:border-gold disabled:opacity-50"
+          >
+            {refreshing ? "Actualizando…" : "Actualizar lista"}
+          </button>
+          {stats?.sourceVersion && (
+            <p className="-mt-3 text-xs text-mute/80">Catálogo {stats.sourceVersion}</p>
+          )}
+        </div>
+      ) : (
+        <div>
+        <label className="block">
           <span className="sr-only">Buscar un plano</span>
           <input
             value={query}
@@ -516,29 +565,9 @@ export function App() {
           ))}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void updateList()}
-            disabled={refreshing}
-            className="rounded-full border border-line px-3 py-2 text-sm text-bone hover:border-gold disabled:opacity-50"
-          >
-            {refreshing ? "Actualizando…" : "Actualizar lista"}
-          </button>
-        </div>
-        {notice && <p className="mt-2 text-sm text-mute">{notice}</p>}
-        {stats?.sourceVersion && (
-          <p className="mt-2 text-xs text-mute/80">
-            {stats.partTotal} planos en la base
-            {stats.ready > 0 ? ` · ${stats.ready} listos para fundir` : ""} · catálogo {stats.sourceVersion}
-          </p>
-        )}
-      </header>
-
-      <div>
-        {loadError && <p className="text-clay">{loadError}</p>}
+        {loadError && <p className="mt-3 text-clay">{loadError}</p>}
         {!listingRequested(kindFilter, debouncedQuery, statusFilter) && (
-          <p className="text-mute">
+          <p className="mt-4 text-mute">
             Elige Warframes, Primarias, Secundarias o Melee, o escribe un nombre. También puedes ver los que están
             listos para fundir.
           </p>
@@ -547,7 +576,7 @@ export function App() {
         {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && rows.length === 0 && (
           <p className="text-mute">Ningún plano coincide con este filtro.</p>
         )}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-2 gap-3">
           {rows.map((row) => (
             <ItemTile key={row.id} item={row} onOpen={() => showItem(row.id)} />
           ))}
@@ -559,7 +588,8 @@ export function App() {
             {rows.length} de {listTotal}. Sigue bajando para ver más.
           </p>
         )}
-      </div>
+        </div>
+      )}
       {openId && (
         <div
           className="fixed inset-0 z-40 flex items-end justify-center bg-ink/80 p-3 sm:items-center"
@@ -601,18 +631,20 @@ export function App() {
   );
 }
 
-function Meter({ label, value, total }: { label: string; value: number; total: number }) {
-  const width = total === 0 ? 0 : Math.round((value / total) * 100);
+function PageTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
-    <div>
-      <div className="mb-1 flex justify-between text-xs text-mute">
-        <span>{label}</span>
-        <span>{width}%</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-line">
-        <div className="h-full rounded-full bg-gold" style={{ width: `${width}%` }} />
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+      className={
+        active
+          ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink"
+          : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"
+      }
+    >
+      {label}
+    </button>
   );
 }
 

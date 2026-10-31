@@ -80,35 +80,64 @@ begin
   built_ids := array(select jsonb_array_elements_text(col->'built'));
   owned_items := array(select jsonb_array_elements_text(col->'items'));
 
+  with marked as (
+    select
+      i.id,
+      i.name,
+      i.kind,
+      i.image,
+      count(p.id)::int as part_count,
+      count(p.id) filter (where p.id = any(owned_parts))::int as owned_count,
+      i.id = any(built_ids) or (count(p.id) = 0 and i.id = any(owned_items)) as complete,
+      count(p.id) > 0 and i.id <> all(built_ids) and count(p.id) filter (where p.id = any(owned_parts)) = count(p.id) as ready,
+      count(p.id) > 0
+        and i.id <> all(built_ids)
+        and count(p.id) filter (where p.id = any(owned_parts)) > 0
+        and count(p.id) - count(p.id) filter (where p.id = any(owned_parts)) between 1 and 2 as almost
+    from public.catalog_items i
+    left join public.catalog_parts p on p.item_id = i.id
+    group by i.id
+  )
   select jsonb_build_object(
-    'frames', count(*) filter (
-      where i.kind = 'warframe' and (
-        i.id = any(built_ids)
-        or (not exists (select 1 from public.catalog_parts p where p.item_id = i.id) and i.id = any(owned_items))
-      )
-    ),
-    'frameTotal', count(*) filter (where i.kind = 'warframe'),
-    'weapons', count(*) filter (
-      where i.kind <> 'warframe' and (
-        i.id = any(built_ids)
-        or (not exists (select 1 from public.catalog_parts p where p.item_id = i.id) and i.id = any(owned_items))
-      )
-    ),
-    'weaponTotal', count(*) filter (where i.kind <> 'warframe'),
-    'ready', count(*) filter (
-      where i.id <> all(built_ids)
-        and exists (select 1 from public.catalog_parts p where p.item_id = i.id)
-        and not exists (
-          select 1 from public.catalog_parts p
-          where p.item_id = i.id and p.id <> all(owned_parts)
-        )
-    ),
+    'frames', count(*) filter (where kind = 'warframe' and complete),
+    'frameTotal', count(*) filter (where kind = 'warframe'),
+    'weapons', count(*) filter (where kind <> 'warframe' and complete),
+    'weaponTotal', count(*) filter (where kind <> 'warframe'),
+    'primary', count(*) filter (where kind = 'primary' and complete),
+    'primaryTotal', count(*) filter (where kind = 'primary'),
+    'secondary', count(*) filter (where kind = 'secondary' and complete),
+    'secondaryTotal', count(*) filter (where kind = 'secondary'),
+    'melee', count(*) filter (where kind = 'melee' and complete),
+    'meleeTotal', count(*) filter (where kind = 'melee'),
+    'ready', count(*) filter (where ready),
+    'almost', count(*) filter (where almost),
+    'ownedParts', (select count(*) from public.catalog_parts cp where cp.id = any(owned_parts)),
     'partTotal', (select count(*) from public.catalog_parts),
     'sourceVersion', (select source_version from public.catalog_meta where id = 1),
-    'generatedAt', (select generated_at from public.catalog_meta where id = 1)
+    'generatedAt', (select generated_at from public.catalog_meta where id = 1),
+    'readyItems', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', id, 'name', name, 'kind', kind, 'image', image, 'missing', 0
+      ) order by name)
+      from (
+        select id, name, kind, image from marked where ready order by name limit 6
+      ) picked
+    ), '[]'::jsonb),
+    'almostItems', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', id, 'name', name, 'kind', kind, 'image', image, 'missing', part_count - owned_count
+      ) order by (part_count - owned_count), name)
+      from (
+        select id, name, kind, image, part_count, owned_count
+        from marked
+        where almost
+        order by (part_count - owned_count), name
+        limit 6
+      ) picked
+    ), '[]'::jsonb)
   )
   into result
-  from public.catalog_items i;
+  from marked;
 
   return result;
 end;

@@ -1,13 +1,31 @@
 import type { Catalog, CatalogItem, ItemKind } from "../types.ts";
 import { supabase } from "./supabase.ts";
 
+export type DashboardHighlight = {
+  id: string;
+  name: string;
+  kind: ItemKind;
+  image: string | null;
+  missing: number;
+};
+
 export type DashboardStats = {
   frames: number;
   frameTotal: number;
   weapons: number;
   weaponTotal: number;
+  primary: number;
+  primaryTotal: number;
+  secondary: number;
+  secondaryTotal: number;
+  melee: number;
+  meleeTotal: number;
   ready: number;
+  almost: number;
+  ownedParts: number;
   partTotal: number;
+  readyItems: DashboardHighlight[];
+  almostItems: DashboardHighlight[];
   sourceVersion: string | null;
   generatedAt: string | null;
 };
@@ -29,11 +47,41 @@ const emptyStats = (): DashboardStats => ({
   frameTotal: 0,
   weapons: 0,
   weaponTotal: 0,
+  primary: 0,
+  primaryTotal: 0,
+  secondary: 0,
+  secondaryTotal: 0,
+  melee: 0,
+  meleeTotal: 0,
   ready: 0,
+  almost: 0,
+  ownedParts: 0,
   partTotal: 0,
+  readyItems: [],
+  almostItems: [],
   sourceVersion: null,
   generatedAt: null,
 });
+
+function asHighlights(value: unknown): DashboardHighlight[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const row = entry as Partial<DashboardHighlight>;
+    if (typeof row.id !== "string" || typeof row.name !== "string") return [];
+    const kind = row.kind;
+    if (kind !== "warframe" && kind !== "primary" && kind !== "secondary" && kind !== "melee") return [];
+    return [
+      {
+        id: row.id,
+        name: row.name,
+        kind,
+        image: typeof row.image === "string" ? row.image : null,
+        missing: Number(row.missing) || 0,
+      },
+    ];
+  });
+}
 
 function asStats(value: unknown): DashboardStats {
   if (!value || typeof value !== "object") return emptyStats();
@@ -43,8 +91,18 @@ function asStats(value: unknown): DashboardStats {
     frameTotal: Number(stats.frameTotal) || 0,
     weapons: Number(stats.weapons) || 0,
     weaponTotal: Number(stats.weaponTotal) || 0,
+    primary: Number(stats.primary) || 0,
+    primaryTotal: Number(stats.primaryTotal) || 0,
+    secondary: Number(stats.secondary) || 0,
+    secondaryTotal: Number(stats.secondaryTotal) || 0,
+    melee: Number(stats.melee) || 0,
+    meleeTotal: Number(stats.meleeTotal) || 0,
     ready: Number(stats.ready) || 0,
+    almost: Number(stats.almost) || 0,
+    ownedParts: Number(stats.ownedParts) || 0,
     partTotal: Number(stats.partTotal) || 0,
+    readyItems: asHighlights(stats.readyItems),
+    almostItems: asHighlights(stats.almostItems),
     sourceVersion: typeof stats.sourceVersion === "string" ? stats.sourceVersion : null,
     generatedAt: typeof stats.generatedAt === "string" ? stats.generatedAt : null,
   };

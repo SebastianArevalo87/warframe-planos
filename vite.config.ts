@@ -1,6 +1,16 @@
-import { defineConfig } from "vite";
+import { copyFileSync } from "node:fs";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+
+function githubPagesFallback(): Plugin {
+  return {
+    name: "github-pages-fallback",
+    closeBundle() {
+      copyFileSync("dist/index.html", "dist/404.html");
+    },
+  };
+}
 
 const marketProxy = {
   "/market": {
@@ -18,7 +28,7 @@ const marketProxy = {
 
 export default defineConfig({
   base: process.env.VITE_BASE ?? "/",
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), githubPagesFallback()],
   server: { proxy: marketProxy },
   preview: { proxy: marketProxy },
 });

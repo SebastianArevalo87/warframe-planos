@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { Catalog, CatalogItem, Collection, Draft, KindFilter, StatusFilter } from "./types.ts";
 import { loadCollection, loadDraft, loadStoredCatalog, saveCollection, saveDraft, saveStoredCatalog } from "./lib/storage.ts";
 import {
@@ -91,7 +91,8 @@ export function App() {
   const [notice, setNotice] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const parentRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
 
   useEffect(() => {
     const stored = loadStoredCatalog();
@@ -152,15 +153,25 @@ export function App() {
     };
   }, [catalog, collection]);
 
-  const virtualizer = useVirtualizer({
+  const virtualizer = useWindowVirtualizer({
     count: visible.length,
-    getScrollElement: () => parentRef.current,
     estimateSize: () => 220,
-    overscan: 6,
+    overscan: 8,
+    scrollMargin,
+  });
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const next = listRef.current?.offsetTop ?? 0;
+      setScrollMargin((current) => (current === next ? current : next));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
   });
 
   useEffect(() => {
-    parentRef.current?.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0 });
   }, [query, statusFilter, kindFilter]);
 
   const enter = useCallback((next: Session) => {
@@ -297,8 +308,8 @@ export function App() {
   }
 
   return (
-    <div className="mx-auto flex h-dvh w-full max-w-3xl flex-col px-4">
-      <header className="shrink-0 pt-6 pb-4">
+    <div className="mx-auto w-full max-w-3xl px-4 pb-16">
+      <header className="pt-6 pb-4">
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
@@ -443,7 +454,7 @@ export function App() {
         )}
       </header>
 
-      <div ref={parentRef} className="min-h-0 flex-1 overflow-auto pb-8">
+      <div ref={listRef}>
         {loadError && <p className="text-clay">{loadError}</p>}
         {!catalog && !loadError && <p className="text-mute">Abriendo la lista de planos…</p>}
         {catalog && visible.length === 0 && (
@@ -459,7 +470,7 @@ export function App() {
                 ref={virtualizer.measureElement}
                 data-index={virtualRow.index}
                 className="absolute top-0 left-0 w-full pb-3"
-                style={{ transform: `translateY(${virtualRow.start}px)` }}
+                style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
               >
                 <ItemCard
                   item={row.item}

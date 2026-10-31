@@ -1,9 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Catalog, CatalogItem, Collection, Draft, KindFilter, StatusFilter } from "./types.ts";
 import { loadCollection, loadDraft, loadStoredCatalog, saveCollection, saveDraft, saveStoredCatalog } from "./lib/storage.ts";
+import {
+  clearSession,
+  loadAccount,
+  loadOrMigrate,
+  loadProfile,
+  loadSession,
+  masteryValue,
+  saveAccount,
+  saveProfile,
+  saveSession,
+  type Profile,
+  type Session,
+} from "./lib/account.ts";
 import { refreshCatalog } from "./lib/refreshCatalog.ts";
 import { ItemCard } from "./ItemCard.tsx";
+import { LoginScreen } from "./Login.tsx";
 
 const KIND_FILTERS: Array<{ id: KindFilter; label: string }> = [
   { id: "all", label: "Todo" },
@@ -47,9 +61,29 @@ function isReady(item: CatalogItem, collection: Collection, draft: Set<string>):
   return ownedPartCount(item, new Set(collection.parts), draft) === item.parts.length;
 }
 
+const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+
+function profileForm(profile: Profile) {
+  return {
+    warframeAccount: profile.warframeAccount,
+    mastery: profile.mastery == null ? "" : String(profile.mastery),
+  };
+}
+
+function storedProfile(session: Session | null): Profile {
+  if (session) return loadAccount(session.sub) ?? loadOrMigrate(session.sub);
+  return loadProfile();
+}
+
 export function App() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [collection, setCollection] = useState<Collection>(() => loadCollection());
+  const [session, setSession] = useState<Session | null>(() => (clientId ? loadSession() : null));
+  const [collection, setCollection] = useState<Collection>(() => {
+    if (!clientId) return loadCollection();
+    const current = loadSession();
+    return current ? loadOrMigrate(current.sub).collection : { parts: [], built: [], items: [] };
+  });
+  const [profile, setProfile] = useState(() => profileForm(storedProfile(clientId ? loadSession() : null)));
   const [draft, setDraft] = useState<Draft>(() => loadDraft());
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("missing");
@@ -129,8 +163,51 @@ export function App() {
     parentRef.current?.scrollTo({ top: 0 });
   }, [query, statusFilter, kindFilter]);
 
+  const enter = useCallback((next: Session) => {
+    const account = loadOrMigrate(next.sub);
+    saveSession(next);
+    setSession(next);
+    setCollection(account.collection);
+    setProfile(profileForm(account));
+  }, []);
+
   function updateDraft(next: Draft) {
     setDraft(next);
+  }
+
+  function writeAccount(next: Collection, nextProfile = profile) {
+    setCollection(next);
+    const stored: Profile = {
+      warframeAccount: nextProfile.warframeAccount.trim(),
+      mastery: masteryValue(nextProfile.mastery),
+    };
+    if (session) {
+      saveAccount(session.sub, { ...stored, collection: next });
+      return;
+    }
+    saveCollection(next);
+    saveProfile(stored);
+  }
+
+  function changeProfile(nextProfile: { warframeAccount: string; mastery: string }) {
+    setProfile(nextProfile);
+    const stored: Profile = {
+      warframeAccount: nextProfile.warframeAccount.trim(),
+      mastery: masteryValue(nextProfile.mastery),
+    };
+    if (session) {
+      saveAccount(session.sub, { ...stored, collection });
+      return;
+    }
+    saveProfile(stored);
+  }
+
+  function logout() {
+    clearSession();
+    updateDraft({ parts: [], history: [] });
+    setSession(null);
+    setCollection({ parts: [], built: [], items: [] });
+    setProfile(profileForm({ warframeAccount: "", mastery: null }));
   }
 
   function pickPart(id: string) {
@@ -162,12 +239,10 @@ export function App() {
   function saveDraftToCollection() {
     if (draft.parts.length === 0) return;
     const saved = draft.parts.length;
-    const next: Collection = {
+    writeAccount({
       ...collection,
       parts: [...new Set([...collection.parts, ...draft.parts])],
-    };
-    setCollection(next);
-    saveCollection(next);
+    });
     updateDraft({ parts: [], history: [] });
     setNotice(`Guardaste ${saved} ${saved === 1 ? "plano" : "planos"} en tu lista.`);
   }
@@ -176,24 +251,18 @@ export function App() {
     const builtIds = built.has(id)
       ? collection.built.filter((itemId) => itemId !== id)
       : [...collection.built, id];
-    const next = { ...collection, built: builtIds };
-    setCollection(next);
-    saveCollection(next);
+    writeAccount({ ...collection, built: builtIds });
   }
 
   function toggleOwnedItem(id: string) {
     const items = ownedItems.has(id)
       ? collection.items.filter((itemId) => itemId !== id)
       : [...collection.items, id];
-    const next = { ...collection, items };
-    setCollection(next);
-    saveCollection(next);
+    writeAccount({ ...collection, items });
   }
 
   function forgetPart(id: string) {
-    const next = { ...collection, parts: collection.parts.filter((partId) => partId !== id) };
-    setCollection(next);
-    saveCollection(next);
+    writeAccount({ ...collection, parts: collection.parts.filter((partId) => partId !== id) });
   }
 
   async function updateList() {
@@ -218,6 +287,15 @@ export function App() {
     }
   }
 
+  const accountHint =
+    profile.warframeAccount.trim() !== "" && !/^.+#\d+$/.test(profile.warframeAccount.trim())
+      ? "Escríbela como en el juego: Nombre#1234"
+      : "";
+
+  if (clientId && !session) {
+    return <LoginScreen clientId={clientId} onSuccess={enter} />;
+  }
+
   return (
     <div className="mx-auto flex h-dvh w-full max-w-3xl flex-col px-4">
       <header className="shrink-0 pt-6 pb-4">
@@ -234,6 +312,47 @@ export function App() {
               Armas <span className="text-bone">{progress.weapons}</span>/{progress.weaponTotal}
             </p>
           </div>
+        </div>
+        <div className="mt-4 rounded-2xl border border-line bg-panel px-4 py-3">
+          <div className="flex items-center gap-3">
+            {session?.picture ? (
+              <img src={session.picture} alt="" className="h-9 w-9 rounded-full" />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm text-bone">{session ? session.name : "Tu cuenta"}</p>
+              <p className="truncate text-xs text-mute">
+                {session ? session.email : "El nombre y la maestría los escribes tú."}
+              </p>
+            </div>
+            {session && (
+              <button type="button" onClick={logout} className="text-sm text-mute hover:text-bone">
+                Salir
+              </button>
+            )}
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_7rem]">
+            <label className="block">
+              <span className="text-xs text-mute">Cuenta de Warframe</span>
+              <input
+                value={profile.warframeAccount}
+                onChange={(event) => changeProfile({ ...profile, warframeAccount: event.target.value })}
+                placeholder="Nombre#1234"
+                autoComplete="off"
+                className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-mute">Maestría</span>
+              <input
+                value={profile.mastery}
+                onChange={(event) => changeProfile({ ...profile, mastery: event.target.value })}
+                inputMode="numeric"
+                placeholder="0"
+                className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
+              />
+            </label>
+          </div>
+          {accountHint && <p className="mt-2 text-xs text-clay">{accountHint}</p>}
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <Meter label="Warframes" value={progress.frames} total={progress.frameTotal} />

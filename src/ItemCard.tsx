@@ -115,18 +115,23 @@ export function ItemCard({
   );
 }
 
-function ItemImage({ src }: { src: string }) {
+function ItemImage({ src, compact = false }: { src: string; compact?: boolean }) {
   const [failed, setFailed] = useState(false);
   if (failed) return null;
+  const size = compact ? 40 : 56;
   return (
     <img
       src={src}
       alt=""
-      width={56}
-      height={56}
+      width={size}
+      height={size}
       loading="lazy"
       decoding="async"
-      className="h-14 w-14 shrink-0 rounded-xl bg-ink object-contain"
+      className={
+        compact
+          ? "h-10 w-10 shrink-0 rounded-lg bg-ink object-contain"
+          : "h-14 w-14 shrink-0 rounded-xl bg-ink object-contain"
+      }
       onError={() => setFailed(true)}
     />
   );
@@ -174,10 +179,13 @@ function PartRow({
       }
     >
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className={owned ? "text-mute" : "text-bone"}>{part.title}</p>
-          {owned && <p className="text-xs text-moss">Lo tengo</p>}
-          {drafted && <p className="text-xs text-gold">Elegido en esta partida</p>}
+        <div className="flex min-w-0 items-center gap-2">
+          {part.image && <ItemImage src={part.image} compact />}
+          <div className="min-w-0">
+            <p className={owned ? "text-mute" : "text-bone"}>{part.title}</p>
+            {owned && <p className="text-xs text-moss">Lo tengo</p>}
+            {drafted && <p className="text-xs text-gold">Elegido en esta partida</p>}
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {part.slug && (

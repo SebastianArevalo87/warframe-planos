@@ -7,6 +7,7 @@ export type CatalogPart = {
   english: string;
   tradable: boolean;
   slug: string | null;
+  image: string | null;
 };
 
 export type CatalogItem = {

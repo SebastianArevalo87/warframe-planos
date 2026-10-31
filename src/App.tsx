@@ -57,14 +57,26 @@ function ownedPartCount(item: CatalogItem, owned: Set<string>, draft: Set<string
 }
 
 function copyMissingImages(catalog: Catalog, images: Catalog): Catalog {
-  const byId = new Map(images.items.map((item) => [item.id, item.image]));
+  const itemImages = new Map(images.items.map((item) => [item.id, item.image]));
+  const partImages = new Map<string, string>();
+  for (const item of images.items) {
+    for (const part of item.parts) {
+      if (part.image) partImages.set(part.id, part.image);
+    }
+  }
   let filled = false;
   const items = catalog.items.map((item) => {
-    if (item.image) return item;
-    const image = byId.get(item.id);
-    if (!image) return item;
-    filled = true;
-    return { ...item, image };
+    const image = item.image || itemImages.get(item.id) || null;
+    const parts = item.parts.map((part) => {
+      if (part.image) return part;
+      const partImage = partImages.get(part.id);
+      if (!partImage) return part;
+      filled = true;
+      return { ...part, image: partImage };
+    });
+    if (!item.image && image) filled = true;
+    if (image === item.image && parts === item.parts) return item;
+    return { ...item, image, parts };
   });
   return filled ? { ...catalog, items } : catalog;
 }

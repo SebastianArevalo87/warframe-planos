@@ -4,6 +4,7 @@ export type RawComponent = {
   name?: string;
   uniqueName?: string;
   tradable?: boolean;
+  imageName?: string;
 };
 
 export type RawItem = {
@@ -33,7 +34,7 @@ export type MarketEntry = {
 const DATA_FILES = ["Warframes", "Primary", "Secondary", "Melee"];
 const DATA_BASE = "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json";
 
-export async function fetchSource(): Promise<{ version: string; groups: RawItem[][] }> {
+export async function fetchSource(): Promise<{ version: string; groups: RawItem[][]; components: RawComponent[] }> {
   const commitResponse = await fetch("https://api.github.com/repos/WFCD/warframe-items/commits/master", {
     headers: {
       Accept: "application/vnd.github+json",
@@ -44,15 +45,21 @@ export async function fetchSource(): Promise<{ version: string; groups: RawItem[
   const commit = (await commitResponse.json()) as { sha?: string };
   const version = commit.sha?.slice(0, 7) ?? "github";
 
-  const groups = await Promise.all(
-    DATA_FILES.map(async (file) => {
-      const response = await fetch(`${DATA_BASE}/${file}.json`);
+  const [groups, components] = await Promise.all([
+    Promise.all(
+      DATA_FILES.map(async (file) => {
+        const response = await fetch(`${DATA_BASE}/${file}.json`);
+        if (!response.ok) throw new Error("catalog");
+        return (await response.json()) as RawItem[];
+      }),
+    ),
+    fetch(`${DATA_BASE}/Components.json`).then(async (response) => {
       if (!response.ok) throw new Error("catalog");
-      return (await response.json()) as RawItem[];
+      return (await response.json()) as RawComponent[];
     }),
-  );
+  ]);
 
-  return { version, groups };
+  return { version, groups, components };
 }
 
 const KIND_BY_CATEGORY: Record<string, ItemKind> = {
@@ -272,8 +279,14 @@ export function buildCatalog(
   entries: MarketEntry[],
   sourceVersion: string,
   generatedAt: string,
+  components: RawComponent[] = [],
 ): Catalog {
   const market = indexMarket(entries);
+  const componentById = new Map<string, RawComponent>();
+  for (const component of components) {
+    const id = component.uniqueName?.trim();
+    if (id) componentById.set(id, component);
+  }
   const seen = new Set<string>();
   const items: CatalogItem[] = [];
 
@@ -290,8 +303,10 @@ export function buildCatalog(
       const seenParts = new Set<string>();
       for (const component of raw.components ?? []) {
         const partId = component.uniqueName?.trim();
-        const partName = partNameOf(component);
-        if (!partId || !partName || seenParts.has(partId) || !isRecipe(component)) continue;
+        if (!partId || seenParts.has(partId) || !isRecipe(component)) continue;
+        const resolved = componentById.get(partId) ?? component;
+        const partName = partNameOf(resolved);
+        if (!partName) continue;
         seenParts.add(partId);
         const slug = matchSlug(name, partName, partId, market);
         parts.push({
@@ -299,8 +314,9 @@ export function buildCatalog(
           short: spanishPart(partName),
           title: partTitle(name, partName),
           english: englishName(name, partName),
-          tradable: component.tradable === true || slug !== null,
+          tradable: resolved.tradable === true || component.tradable === true || slug !== null,
           slug,
+          image: itemImage(resolved.imageName),
         });
       }
 

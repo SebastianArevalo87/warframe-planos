@@ -14,11 +14,9 @@ type ItemCardProps = {
   item: CatalogItem;
   visiblePartIds: string[] | null;
   ownedParts: Set<string>;
-  draftParts: Set<string>;
   built: boolean;
   ownedItem: boolean;
-  onPickPart: (id: string) => void;
-  onUnpickDraft: (id: string) => void;
+  onHavePart: (id: string) => void;
   onForgetPart: (id: string) => void;
   onToggleBuilt: () => void;
   onToggleOwnedItem: () => void;
@@ -28,11 +26,9 @@ export function ItemCard({
   item,
   visiblePartIds,
   ownedParts,
-  draftParts,
   built,
   ownedItem,
-  onPickPart,
-  onUnpickDraft,
+  onHavePart,
   onForgetPart,
   onToggleBuilt,
   onToggleOwnedItem,
@@ -40,13 +36,13 @@ export function ItemCard({
   const parts = visiblePartIds
     ? item.parts.filter((part) => visiblePartIds.includes(part.id))
     : item.parts;
-  const ownedCount = item.parts.filter((part) => ownedParts.has(part.id) || draftParts.has(part.id)).length;
+  const ownedCount = item.parts.filter((part) => ownedParts.has(part.id)).length;
   const ready = item.parts.length > 0 && ownedCount === item.parts.length && !built;
 
   return (
     <article className="rounded-2xl border border-line bg-panel/90 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.22)]">
       <header className="flex items-start gap-3">
-        {item.image && <ItemImage src={item.image} />}
+        {item.image && <ItemImage src={item.image} large />}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">
@@ -103,10 +99,8 @@ export function ItemCard({
               key={part.id}
               part={part}
               owned={ownedParts.has(part.id)}
-              drafted={draftParts.has(part.id)}
               locked={built}
-              onPick={() => onPickPart(part.id)}
-              onUnpick={() => onUnpickDraft(part.id)}
+              onHave={() => onHavePart(part.id)}
               onForget={() => onForgetPart(part.id)}
             />
           ))}
@@ -170,10 +164,10 @@ export function ItemTile({ item, onOpen }: { item: ItemSummary; onOpen: () => vo
   );
 }
 
-function ItemImage({ src, compact = false }: { src: string; compact?: boolean }) {
+function ItemImage({ src, compact = false, large = false }: { src: string; compact?: boolean; large?: boolean }) {
   const [failed, setFailed] = useState(false);
   if (failed) return null;
-  const size = compact ? 40 : 56;
+  const size = large ? 112 : compact ? 40 : 56;
   return (
     <img
       src={src}
@@ -183,9 +177,11 @@ function ItemImage({ src, compact = false }: { src: string; compact?: boolean })
       loading="lazy"
       decoding="async"
       className={
-        compact
-          ? "h-10 w-10 shrink-0 rounded-lg bg-ink object-contain"
-          : "h-14 w-14 shrink-0 rounded-xl bg-ink object-contain"
+        large
+          ? "h-28 w-28 shrink-0 rounded-2xl bg-ink object-contain"
+          : compact
+            ? "h-10 w-10 shrink-0 rounded-lg bg-ink object-contain"
+            : "h-14 w-14 shrink-0 rounded-xl bg-ink object-contain"
       }
       onError={() => setFailed(true)}
     />
@@ -195,18 +191,14 @@ function ItemImage({ src, compact = false }: { src: string; compact?: boolean })
 function PartRow({
   part,
   owned,
-  drafted,
   locked,
-  onPick,
-  onUnpick,
+  onHave,
   onForget,
 }: {
   part: CatalogPart;
   owned: boolean;
-  drafted: boolean;
   locked: boolean;
-  onPick: () => void;
-  onUnpick: () => void;
+  onHave: () => void;
   onForget: () => void;
 }) {
   const [quote, setQuote] = useState<PriceQuote | null>(null);
@@ -226,20 +218,13 @@ function PartRow({
   }
 
   return (
-    <li
-      className={
-        drafted
-          ? "rounded-xl border border-gold/50 bg-gold/10 px-3 py-2"
-          : "rounded-xl border border-line/80 bg-ink/40 px-3 py-2"
-      }
-    >
+    <li className="rounded-xl border border-line/80 bg-ink/40 px-3 py-2">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           {part.image && <ItemImage src={part.image} compact />}
           <div className="min-w-0">
             <p className={owned ? "text-mute" : "text-bone"}>{part.title}</p>
             {owned && <p className="text-xs text-moss">Lo tengo</p>}
-            {drafted && <p className="text-xs text-gold">Elegido en esta partida</p>}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -252,18 +237,13 @@ function PartRow({
               {priceState === "loading" ? "Consultando…" : "Precio"}
             </button>
           )}
-          {!locked && !owned && !drafted && (
+          {!locked && !owned && (
             <button
               type="button"
-              onClick={onPick}
+              onClick={onHave}
               className="rounded-full bg-gold px-3 py-2 text-sm font-medium text-ink"
             >
-              Lo elegí
-            </button>
-          )}
-          {!locked && drafted && (
-            <button type="button" onClick={onUnpick} className="rounded-full px-3 py-2 text-sm text-gold">
-              Quitar
+              Lo tengo
             </button>
           )}
           {!locked && owned && (

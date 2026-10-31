@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CatalogItem, Collection, Draft, KindFilter, StatusFilter } from "./types.ts";
-import { loadCollection, loadDraft, saveCollection, saveDraft } from "./lib/storage.ts";
+import type { CatalogItem, Collection, KindFilter, StatusFilter } from "./types.ts";
+import { loadCollection, saveCollection } from "./lib/storage.ts";
 import { loadProfile, masteryValue, saveProfile, type Profile, type Session } from "./lib/account.ts";
 import { loadOrCreateRemote, saveRemoteAccount } from "./lib/remote.ts";
 import { sessionFromUser, supabase, supabaseEnabled } from "./lib/supabase.ts";
@@ -45,7 +45,6 @@ export function App() {
   const [profile, setProfile] = useState(() =>
     profileForm(supabaseEnabled ? { warframeAccount: "", mastery: null } : loadProfile()),
   );
-  const [draft, setDraft] = useState<Draft>(() => loadDraft());
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("missing");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
@@ -60,16 +59,13 @@ export function App() {
   const listRequest = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [savedTick, setSavedTick] = useState(0);
+  const [listReload, setListReload] = useState(0);
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("item"));
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(() => Boolean(new URLSearchParams(window.location.search).get("item")));
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const [accountOpen, setAccountOpen] = useState(false);
-
-  useEffect(() => {
-    saveDraft(draft);
-  }, [draft]);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -130,7 +126,6 @@ export function App() {
   }, [userId]);
 
   const ownedParts = useMemo(() => new Set(collection.parts), [collection.parts]);
-  const draftParts = useMemo(() => new Set(draft.parts), [draft.parts]);
   const built = useMemo(() => new Set(collection.built), [collection.built]);
   const ownedItems = useMemo(() => new Set(collection.items), [collection.items]);
 
@@ -182,7 +177,7 @@ export function App() {
       .finally(() => {
         if (listRequest.current === request) setListLoading(false);
       });
-  }, [accountReady, kindFilter, debouncedQuery, statusFilter, savedTick]);
+  }, [accountReady, kindFilter, debouncedQuery, statusFilter, listReload]);
 
   const hasMore = rows.length < listTotal;
 
@@ -254,9 +249,19 @@ export function App() {
     window.scrollTo({ top: 0 });
   }, [query, statusFilter, kindFilter]);
 
-  function updateDraft(next: Draft) {
-    setDraft(next);
-  }
+  useEffect(() => {
+    if (!openId) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") hideItem();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [openId]);
 
   function writeAccount(next: Collection, nextProfile = profile) {
     setCollection(next);
@@ -292,48 +297,22 @@ export function App() {
   }
 
   function logout() {
-    updateDraft({ parts: [], history: [] });
     setAccountReady(false);
     setCollection({ parts: [], built: [], items: [] });
     setProfile(profileForm({ warframeAccount: "", mastery: null }));
     void supabase?.auth.signOut();
   }
 
-  function pickPart(id: string) {
-    if (ownedParts.has(id) || draftParts.has(id)) return;
-    updateDraft({ parts: [...draft.parts, id], history: [...draft.history, id] });
+  function patchOpenRow(patch: Partial<ItemSummary>) {
+    if (!openItem) return;
+    const id = openItem.id;
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   }
 
-  function unpickDraft(id: string) {
-    updateDraft({
-      parts: draft.parts.filter((partId) => partId !== id),
-      history: draft.history.filter((partId) => partId !== id),
-    });
-  }
-
-  function undo() {
-    const id = draft.history.at(-1);
-    if (!id) return;
-    updateDraft({
-      parts: draft.parts.filter((partId) => partId !== id),
-      history: draft.history.slice(0, -1),
-    });
-  }
-
-  function discard() {
-    updateDraft({ parts: [], history: [] });
-    setNotice("Se descartó el borrador de esta partida.");
-  }
-
-  function saveDraftToCollection() {
-    if (draft.parts.length === 0) return;
-    const saved = draft.parts.length;
-    writeAccount({
-      ...collection,
-      parts: [...new Set([...collection.parts, ...draft.parts])],
-    });
-    updateDraft({ parts: [], history: [] });
-    setNotice(`Guardaste ${saved} ${saved === 1 ? "plano" : "planos"} en tu lista.`);
+  function havePart(id: string) {
+    if (ownedParts.has(id) || !openItem) return;
+    writeAccount({ ...collection, parts: [...collection.parts, id] });
+    patchOpenRow({ ownedCount: openItem.parts.filter((part) => ownedParts.has(part.id) || part.id === id).length });
   }
 
   function toggleBuilt(id: string) {
@@ -341,6 +320,7 @@ export function App() {
       ? collection.built.filter((itemId) => itemId !== id)
       : [...collection.built, id];
     writeAccount({ ...collection, built: builtIds });
+    patchOpenRow({ built: !built.has(id) });
   }
 
   function toggleOwnedItem(id: string) {
@@ -348,10 +328,13 @@ export function App() {
       ? collection.items.filter((itemId) => itemId !== id)
       : [...collection.items, id];
     writeAccount({ ...collection, items });
+    patchOpenRow({ ownedItem: !ownedItems.has(id) });
   }
 
   function forgetPart(id: string) {
+    if (!openItem) return;
     writeAccount({ ...collection, parts: collection.parts.filter((partId) => partId !== id) });
+    patchOpenRow({ ownedCount: openItem.parts.filter((part) => ownedParts.has(part.id) && part.id !== id).length });
   }
 
   function showItem(id: string) {
@@ -376,6 +359,7 @@ export function App() {
       const next = await refreshCatalog();
       const added = await storeCatalog(next);
       setStats(await fetchDashboard());
+      setListReload((tick) => tick + 1);
       setSavedTick((tick) => tick + 1);
       setNotice(
         added > 0
@@ -541,37 +525,7 @@ export function App() {
           >
             {refreshing ? "Actualizando…" : "Actualizar lista"}
           </button>
-          <button
-            type="button"
-            onClick={saveDraftToCollection}
-            disabled={draft.parts.length === 0}
-            className="rounded-full bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
-          >
-            Guardar{draft.parts.length > 0 ? ` (${draft.parts.length})` : ""}
-          </button>
-          <button
-            type="button"
-            onClick={undo}
-            disabled={draft.history.length === 0}
-            className="rounded-full px-3 py-2 text-sm text-mute disabled:opacity-40"
-          >
-            Deshacer
-          </button>
-          <button
-            type="button"
-            onClick={discard}
-            disabled={draft.parts.length === 0}
-            className="rounded-full px-3 py-2 text-sm text-mute disabled:opacity-40"
-          >
-            Descartar
-          </button>
         </div>
-        {draft.parts.length > 0 && (
-          <p className="mt-2 text-sm text-gold">
-            {draft.parts.length} {draft.parts.length === 1 ? "plano marcado" : "planos marcados"} en esta partida.
-            Si la ronda se pierde, deshaz el último. Se graban al pulsar Guardar.
-          </p>
-        )}
         {notice && <p className="mt-2 text-sm text-mute">{notice}</p>}
         {stats?.sourceVersion && (
           <p className="mt-2 text-xs text-mute/80">
@@ -583,56 +537,66 @@ export function App() {
 
       <div>
         {loadError && <p className="text-clay">{loadError}</p>}
-        {openId ? (
-          <div className="pb-8">
-            <button type="button" onClick={hideItem} className="mb-3 text-sm text-gold">
-              Volver al tablero
-            </button>
-            {detailLoading && <p className="text-mute">Abriendo el plano…</p>}
-            {!detailLoading && !openItem && <p className="text-mute">Ese plano no está en la base.</p>}
-            {!detailLoading && openItem && (
-              <ItemCard
-                item={openItem}
-                visiblePartIds={null}
-                ownedParts={ownedParts}
-                draftParts={draftParts}
-                built={built.has(openItem.id)}
-                ownedItem={ownedItems.has(openItem.id)}
-                onPickPart={pickPart}
-                onUnpickDraft={unpickDraft}
-                onForgetPart={forgetPart}
-                onToggleBuilt={() => toggleBuilt(openItem.id)}
-                onToggleOwnedItem={() => toggleOwnedItem(openItem.id)}
-              />
-            )}
-          </div>
-        ) : (
-          <>
-            {!listingRequested(kindFilter, debouncedQuery, statusFilter) && (
-              <p className="text-mute">
-                Elige Warframes, Primarias, Secundarias o Melee, o escribe un nombre. También puedes ver los que están
-                listos para fundir.
-              </p>
-            )}
-            {listLoading && rows.length === 0 && <p className="text-mute">Buscando…</p>}
-            {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && rows.length === 0 && (
-              <p className="text-mute">Ningún plano coincide con este filtro.</p>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              {rows.map((row) => (
-                <ItemTile key={row.id} item={row} onOpen={() => showItem(row.id)} />
-              ))}
-            </div>
-            {hasMore && <div ref={sentinelRef} className="h-8" />}
-            {loadingMore && <p className="mt-3 text-center text-sm text-mute">Cargando más…</p>}
-            {listTotal > rows.length && !loadingMore && rows.length > 0 && (
-              <p className="mt-3 text-center text-xs text-mute">
-                {rows.length} de {listTotal}. Sigue bajando para ver más.
-              </p>
-            )}
-          </>
+        {!listingRequested(kindFilter, debouncedQuery, statusFilter) && (
+          <p className="text-mute">
+            Elige Warframes, Primarias, Secundarias o Melee, o escribe un nombre. También puedes ver los que están
+            listos para fundir.
+          </p>
+        )}
+        {listLoading && rows.length === 0 && <p className="text-mute">Buscando…</p>}
+        {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && rows.length === 0 && (
+          <p className="text-mute">Ningún plano coincide con este filtro.</p>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          {rows.map((row) => (
+            <ItemTile key={row.id} item={row} onOpen={() => showItem(row.id)} />
+          ))}
+        </div>
+        {hasMore && <div ref={sentinelRef} className="h-8" />}
+        {loadingMore && <p className="mt-3 text-center text-sm text-mute">Cargando más…</p>}
+        {listTotal > rows.length && !loadingMore && rows.length > 0 && (
+          <p className="mt-3 text-center text-xs text-mute">
+            {rows.length} de {listTotal}. Sigue bajando para ver más.
+          </p>
         )}
       </div>
+      {openId && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center bg-ink/80 p-3 sm:items-center"
+          onClick={hideItem}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={openItem?.name ?? "Detalle del plano"}
+            className="max-h-[min(92dvh,44rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-line bg-ink p-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex justify-end">
+              <button type="button" onClick={hideItem} className="rounded-full px-3 py-2 text-sm text-gold">
+                Cerrar
+              </button>
+            </div>
+            {detailLoading && <p className="px-2 pb-4 text-mute">Abriendo el plano…</p>}
+            {!detailLoading && !openItem && <p className="px-2 pb-4 text-mute">Ese plano no está en la base.</p>}
+            {!detailLoading && openItem && (
+              <div>
+                <ItemCard
+                  item={openItem}
+                  visiblePartIds={null}
+                  ownedParts={ownedParts}
+                  built={built.has(openItem.id)}
+                  ownedItem={ownedItems.has(openItem.id)}
+                  onHavePart={havePart}
+                  onForgetPart={forgetPart}
+                  onToggleBuilt={() => toggleBuilt(openItem.id)}
+                  onToggleOwnedItem={() => toggleOwnedItem(openItem.id)}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

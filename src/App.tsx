@@ -62,11 +62,29 @@ export function App() {
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [scrollMargin, setScrollMargin] = useState(0);
 
   useEffect(() => {
     saveDraft(draft);
   }, [draft]);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!accountMenuRef.current?.contains(event.target as Node)) setAccountOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setAccountOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [accountOpen]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -366,60 +384,82 @@ export function App() {
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-16">
       <header className="pt-6 pb-4">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
-            <h1 className="text-3xl font-medium text-bone">Planos</h1>
-          </div>
-          <div className="text-right text-sm text-mute">
-            <p>
-              Warframes <span className="text-bone">{stats?.frames ?? 0}</span>/{stats?.frameTotal ?? 0}
-            </p>
-            <p>
-              Armas <span className="text-bone">{stats?.weapons ?? 0}</span>/{stats?.weaponTotal ?? 0}
-            </p>
-          </div>
-        </div>
-        <div className="mt-4 rounded-2xl border border-line bg-panel px-4 py-3">
-          <div className="flex items-center gap-3">
-            {session?.picture ? (
-              <img src={session.picture} alt="" className="h-9 w-9 rounded-full" />
-            ) : null}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm text-bone">{session ? session.name : "Tu cuenta"}</p>
-              <p className="truncate text-xs text-mute">
-                {session ? session.email : "El nombre y la maestría los escribes tú."}
-              </p>
+        <div ref={accountMenuRef} className="relative">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
+              <h1 className="text-3xl font-medium text-bone">Planos</h1>
             </div>
-            {session && (
-              <button type="button" onClick={logout} className="text-sm text-mute hover:text-bone">
-                Salir
+            <div className="flex items-start gap-3">
+              <div className="hidden pt-1 text-right text-sm text-mute sm:block">
+                <p>
+                  Warframes <span className="text-bone">{stats?.frames ?? 0}</span>/{stats?.frameTotal ?? 0}
+                </p>
+                <p>
+                  Armas <span className="text-bone">{stats?.weapons ?? 0}</span>/{stats?.weaponTotal ?? 0}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-expanded={accountOpen}
+                aria-controls="cuenta-menu"
+                onClick={() => setAccountOpen((open) => !open)}
+                className="flex max-w-40 items-center gap-2 rounded-full border border-line bg-panel py-1.5 pr-3 pl-1.5 text-sm text-bone hover:border-gold"
+              >
+                {session?.picture ? (
+                  <img src={session.picture} alt="" className="h-7 w-7 rounded-full" />
+                ) : (
+                  <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-xs text-gold">WF</span>
+                )}
+                <span className="truncate">{profile.warframeAccount.trim() || "Cuenta"}</span>
               </button>
-            )}
+            </div>
           </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_7rem]">
-            <label className="block">
-              <span className="text-xs text-mute">Cuenta de Warframe</span>
-              <input
-                value={profile.warframeAccount}
-                onChange={(event) => changeProfile({ ...profile, warframeAccount: event.target.value })}
-                placeholder="Nombre#1234"
-                autoComplete="off"
-                className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs text-mute">Maestría</span>
-              <input
-                value={profile.mastery}
-                onChange={(event) => changeProfile({ ...profile, mastery: event.target.value })}
-                inputMode="numeric"
-                placeholder="0"
-                className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
-              />
-            </label>
-          </div>
-          {accountHint && <p className="mt-2 text-xs text-clay">{accountHint}</p>}
+          {accountOpen && (
+            <div
+              id="cuenta-menu"
+              role="dialog"
+              aria-label="Cuenta"
+              className="absolute inset-x-0 top-full z-30 mt-2 rounded-2xl border border-line bg-panel px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm text-bone">{session ? session.name : "Tu cuenta"}</p>
+                  <p className="truncate text-xs text-mute">
+                    {session ? session.email : "El nombre y la maestría los escribes tú."}
+                  </p>
+                </div>
+                {session && (
+                  <button type="button" onClick={logout} className="text-sm text-mute hover:text-bone">
+                    Salir
+                  </button>
+                )}
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_7rem]">
+                <label className="block">
+                  <span className="text-xs text-mute">Cuenta de Warframe</span>
+                  <input
+                    value={profile.warframeAccount}
+                    onChange={(event) => changeProfile({ ...profile, warframeAccount: event.target.value })}
+                    placeholder="Nombre#1234"
+                    autoComplete="off"
+                    className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-mute">Maestría</span>
+                  <input
+                    value={profile.mastery}
+                    onChange={(event) => changeProfile({ ...profile, mastery: event.target.value })}
+                    inputMode="numeric"
+                    placeholder="0"
+                    className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
+                  />
+                </label>
+              </div>
+              {accountHint && <p className="mt-2 text-xs text-clay">{accountHint}</p>}
+            </div>
+          )}
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <Meter label="Warframes" value={stats?.frames ?? 0} total={stats?.frameTotal ?? 0} />

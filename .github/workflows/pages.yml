@@ -34,7 +34,8 @@ jobs:
         run: npm run build
         env:
           VITE_BASE: /warframe-planos/
-          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_SUPABASE_URL: https://icjkgectkhxnfkocylpg.supabase.co
+          VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljamtnZWN0a2h4bmZrb2N5bHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0ODAzNDYsImV4cCI6MjEwOTA1NjM0Nn0.lVPt0p2QbYivEQDAv8bRTLLSG1Agk2aMGX9fB78pcWg
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

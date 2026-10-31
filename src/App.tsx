@@ -1,23 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { Catalog, CatalogItem, Collection, Draft, KindFilter, StatusFilter } from "./types.ts";
 import { loadCollection, loadDraft, loadStoredCatalog, saveCollection, saveDraft, saveStoredCatalog } from "./lib/storage.ts";
-import {
-  clearSession,
-  loadAccount,
-  loadOrMigrate,
-  loadProfile,
-  loadSession,
-  masteryValue,
-  saveAccount,
-  saveProfile,
-  saveSession,
-  type Profile,
-  type Session,
-} from "./lib/account.ts";
+import { loadProfile, masteryValue, saveProfile, type Profile, type Session } from "./lib/account.ts";
+import { loadOrCreateRemote, saveRemoteAccount } from "./lib/remote.ts";
+import { sessionFromUser, supabase, supabaseEnabled } from "./lib/supabase.ts";
 import { refreshCatalog } from "./lib/refreshCatalog.ts";
 import { ItemCard } from "./ItemCard.tsx";
-import { LoginScreen } from "./Login.tsx";
+import { Gate, LoginScreen } from "./Login.tsx";
 
 const KIND_FILTERS: Array<{ id: KindFilter; label: string }> = [
   { id: "all", label: "Todo" },
@@ -86,8 +76,6 @@ function isReady(item: CatalogItem, collection: Collection, draft: Set<string>):
   return ownedPartCount(item, new Set(collection.parts), draft) === item.parts.length;
 }
 
-const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
-
 function profileForm(profile: Profile) {
   return {
     warframeAccount: profile.warframeAccount,
@@ -95,20 +83,18 @@ function profileForm(profile: Profile) {
   };
 }
 
-function storedProfile(session: Session | null): Profile {
-  if (session) return loadAccount(session.sub) ?? loadOrMigrate(session.sub);
-  return loadProfile();
-}
-
 export function App() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [session, setSession] = useState<Session | null>(() => (clientId ? loadSession() : null));
-  const [collection, setCollection] = useState<Collection>(() => {
-    if (!clientId) return loadCollection();
-    const current = loadSession();
-    return current ? loadOrMigrate(current.sub).collection : { parts: [], built: [], items: [] };
-  });
-  const [profile, setProfile] = useState(() => profileForm(storedProfile(clientId ? loadSession() : null)));
+  const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(!supabaseEnabled);
+  const [accountReady, setAccountReady] = useState(!supabaseEnabled);
+  const [accountError, setAccountError] = useState("");
+  const [collection, setCollection] = useState<Collection>(() =>
+    supabaseEnabled ? { parts: [], built: [], items: [] } : loadCollection(),
+  );
+  const [profile, setProfile] = useState(() =>
+    profileForm(supabaseEnabled ? { warframeAccount: "", mastery: null } : loadProfile()),
+  );
   const [draft, setDraft] = useState<Draft>(() => loadDraft());
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("missing");
@@ -139,6 +125,48 @@ export function App() {
   useEffect(() => {
     saveDraft(draft);
   }, [draft]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setSession(data.session ? sessionFromUser(data.session.user) : null);
+      setAuthReady(true);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next ? sessionFromUser(next.user) : null);
+      setAuthReady(true);
+    });
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const userId = session?.sub;
+
+  useEffect(() => {
+    if (!supabaseEnabled || !userId) return;
+    let cancelled = false;
+    setAccountReady(false);
+    setAccountError("");
+    void loadOrCreateRemote(userId)
+      .then((account) => {
+        if (cancelled) return;
+        setCollection(account.collection);
+        setProfile(profileForm(account));
+        setAccountReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setAccountError("No pude abrir tu lista.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const ownedParts = useMemo(() => new Set(collection.parts), [collection.parts]);
   const draftParts = useMemo(() => new Set(draft.parts), [draft.parts]);
@@ -199,14 +227,6 @@ export function App() {
     window.scrollTo({ top: 0 });
   }, [query, statusFilter, kindFilter]);
 
-  const enter = useCallback((next: Session) => {
-    const account = loadOrMigrate(next.sub);
-    saveSession(next);
-    setSession(next);
-    setCollection(account.collection);
-    setProfile(profileForm(account));
-  }, []);
-
   function updateDraft(next: Draft) {
     setDraft(next);
   }
@@ -217,8 +237,10 @@ export function App() {
       warframeAccount: nextProfile.warframeAccount.trim(),
       mastery: masteryValue(nextProfile.mastery),
     };
-    if (session) {
-      saveAccount(session.sub, { ...stored, collection: next });
+    if (supabaseEnabled && session) {
+      void saveRemoteAccount(session.sub, { ...stored, collection: next }).catch(() => {
+        setNotice("No pude guardar la lista. Inténtalo otra vez.");
+      });
       return;
     }
     saveCollection(next);
@@ -231,19 +253,21 @@ export function App() {
       warframeAccount: nextProfile.warframeAccount.trim(),
       mastery: masteryValue(nextProfile.mastery),
     };
-    if (session) {
-      saveAccount(session.sub, { ...stored, collection });
+    if (supabaseEnabled && session) {
+      void saveRemoteAccount(session.sub, { ...stored, collection }).catch(() => {
+        setNotice("No pude guardar la lista. Inténtalo otra vez.");
+      });
       return;
     }
     saveProfile(stored);
   }
 
   function logout() {
-    clearSession();
     updateDraft({ parts: [], history: [] });
-    setSession(null);
+    setAccountReady(false);
     setCollection({ parts: [], built: [], items: [] });
     setProfile(profileForm({ warframeAccount: "", mastery: null }));
+    void supabase?.auth.signOut();
   }
 
   function pickPart(id: string) {
@@ -328,8 +352,17 @@ export function App() {
       ? "Escríbela como en el juego: Nombre#1234"
       : "";
 
-  if (clientId && !session) {
-    return <LoginScreen clientId={clientId} onSuccess={enter} />;
+  if (supabaseEnabled && !authReady) {
+    return <Gate title="Abriendo…" />;
+  }
+  if (supabaseEnabled && !session) {
+    return <LoginScreen />;
+  }
+  if (supabaseEnabled && accountError) {
+    return <Gate title={accountError} />;
+  }
+  if (supabaseEnabled && !accountReady) {
+    return <Gate title="Abriendo tu lista…" />;
   }
 
   return (

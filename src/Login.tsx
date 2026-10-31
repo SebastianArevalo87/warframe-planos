@@ -1,86 +1,49 @@
-import { useEffect, useRef, useState } from "react";
-import { sessionFromCredential, type Session } from "./lib/account.ts";
+import { useState, type ReactNode } from "react";
+import { redirectToApp, supabase } from "./lib/supabase.ts";
 
-type CredentialResponse = { credential: string };
+export function LoginScreen() {
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
 
-type GoogleId = {
-  initialize(config: {
-    client_id: string;
-    callback: (response: CredentialResponse) => void;
-    auto_select?: boolean;
-  }): void;
-  renderButton(parent: HTMLElement, options: Record<string, string | number>): void;
-};
-
-declare global {
-  interface Window {
-    google?: { accounts: { id: GoogleId } };
+  async function enter() {
+    if (!supabase) return;
+    setPending(true);
+    setError("");
+    const { error: signInError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: redirectToApp() },
+    });
+    if (signInError) {
+      setPending(false);
+      setError("No pude abrir Google. Inténtalo otra vez.");
+    }
   }
+
+  return (
+    <Gate
+      title="Entra con Google para guardar tu lista. Cada cuenta ve solo lo suyo, en el celular y en la computadora. El nombre del juego y la maestría los escribes tú."
+      action={
+        <button
+          type="button"
+          onClick={() => void enter()}
+          disabled={pending}
+          className="rounded-full bg-bone px-5 py-3 text-sm font-medium text-ink disabled:opacity-50"
+        >
+          {pending ? "Abriendo Google…" : "Continuar con Google"}
+        </button>
+      }
+      error={error}
+    />
+  );
 }
 
-export function LoginScreen({ clientId, onSuccess }: { clientId: string; onSuccess: (session: Session) => void }) {
-  const buttonRef = useRef<HTMLDivElement>(null);
-  const onSuccessRef = useRef(onSuccess);
-  const [error, setError] = useState("");
-  onSuccessRef.current = onSuccess;
-
-  useEffect(() => {
-    let cancelled = false;
-
-    function render() {
-      if (cancelled || !buttonRef.current || !window.google) return;
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        auto_select: true,
-        callback: (response) => {
-          const session = sessionFromCredential(response.credential, clientId);
-          if (!session) {
-            setError("Google no devolvió una cuenta válida.");
-            return;
-          }
-          onSuccessRef.current(session);
-        },
-      });
-      buttonRef.current.replaceChildren();
-      window.google.accounts.id.renderButton(buttonRef.current, {
-        theme: "filled_black",
-        size: "large",
-        text: "continue_with",
-        shape: "pill",
-        locale: "es",
-        width: 320,
-      });
-    }
-
-    if (window.google) {
-      render();
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.onload = () => render();
-    script.onerror = () => {
-      if (!cancelled) setError("No pude cargar el acceso de Google.");
-    };
-    document.head.appendChild(script);
-    return () => {
-      cancelled = true;
-    };
-  }, [clientId]);
-
+export function Gate({ title, action, error }: { title: string; action?: ReactNode; error?: string }) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6">
       <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
       <h1 className="mt-2 text-4xl font-medium text-bone">Planos</h1>
-      <p className="mt-3 text-sm leading-6 text-mute">
-        Entra con Google para guardar tu lista. Cada cuenta ve solo lo suyo. El nombre del juego y la maestría los
-        escribes tú.
-      </p>
-      <div ref={buttonRef} className="mt-8 flex min-h-11 justify-center" />
+      <p className="mt-3 text-sm leading-6 text-mute">{title}</p>
+      {action && <div className="mt-8">{action}</div>}
       {error && <p className="mt-4 text-sm text-clay">{error}</p>}
     </div>
   );

@@ -1,4 +1,4 @@
-import type { Catalog, CatalogItem, ItemKind } from "../types.ts";
+import type { Catalog, CatalogItem, CatalogPart, ItemKind } from "../types.ts";
 import { supabase } from "./supabase.ts";
 
 export type DashboardHighlight = {
@@ -7,6 +7,7 @@ export type DashboardHighlight = {
   kind: ItemKind;
   image: string | null;
   missing: number;
+  caption: string;
 };
 
 export type DashboardStats = {
@@ -26,6 +27,8 @@ export type DashboardStats = {
   partTotal: number;
   readyItems: DashboardHighlight[];
   almostItems: DashboardHighlight[];
+  sellCopies: number;
+  sellItems: DashboardHighlight[];
   sourceVersion: string | null;
   generatedAt: string | null;
 };
@@ -59,6 +62,8 @@ const emptyStats = (): DashboardStats => ({
   partTotal: 0,
   readyItems: [],
   almostItems: [],
+  sellCopies: 0,
+  sellItems: [],
   sourceVersion: null,
   generatedAt: null,
 });
@@ -78,6 +83,7 @@ function asHighlights(value: unknown): DashboardHighlight[] {
         kind,
         image: typeof row.image === "string" ? row.image : null,
         missing: Number(row.missing) || 0,
+        caption: typeof row.caption === "string" ? row.caption : "",
       },
     ];
   });
@@ -103,6 +109,8 @@ function asStats(value: unknown): DashboardStats {
     partTotal: Number(stats.partTotal) || 0,
     readyItems: asHighlights(stats.readyItems),
     almostItems: asHighlights(stats.almostItems),
+    sellCopies: Number(stats.sellCopies) || 0,
+    sellItems: asHighlights(stats.sellItems),
     sourceVersion: typeof stats.sourceVersion === "string" ? stats.sourceVersion : null,
     generatedAt: typeof stats.generatedAt === "string" ? stats.generatedAt : null,
   };
@@ -140,12 +148,39 @@ export async function fetchItemList(kind: string, query: string, status: string,
   };
 }
 
+function asPart(value: unknown): CatalogPart | null {
+  if (!value || typeof value !== "object") return null;
+  const part = value as CatalogPart;
+  if (typeof part.id !== "string" || typeof part.title !== "string") return null;
+  const slug = typeof part.slug === "string" && part.slug ? part.slug : null;
+  return {
+    id: part.id,
+    short: typeof part.short === "string" ? part.short : part.title,
+    title: part.title,
+    english: typeof part.english === "string" ? part.english : part.title,
+    tradable: part.tradable === true || slug !== null,
+    slug,
+    image: typeof part.image === "string" ? part.image : null,
+  };
+}
+
 export async function fetchItemDetail(id: string): Promise<CatalogItem | null> {
   if (!supabase) throw new Error("supabase");
   const { data, error } = await supabase.rpc("item_detail", { p_id: id });
   if (error) throw error;
   if (!data || typeof data !== "object") return null;
-  return data as CatalogItem;
+  const item = data as CatalogItem;
+  if (typeof item.id !== "string" || typeof item.name !== "string" || !Array.isArray(item.parts)) return null;
+  const slug = typeof item.slug === "string" && item.slug && !item.slug.endsWith("_set") ? item.slug : null;
+  return {
+    ...item,
+    tradable: item.tradable === true || slug !== null,
+    slug,
+    parts: item.parts.flatMap((part) => {
+      const next = asPart(part);
+      return next ? [next] : [];
+    }),
+  };
 }
 
 export async function storeCatalog(catalog: Catalog): Promise<number> {

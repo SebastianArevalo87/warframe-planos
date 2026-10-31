@@ -13,37 +13,39 @@ const KIND_LABEL = {
 type ItemCardProps = {
   item: CatalogItem;
   visiblePartIds: string[] | null;
-  ownedParts: Set<string>;
+  qty: Record<string, number>;
   built: boolean;
-  ownedItem: boolean;
-  onHavePart: (id: string) => void;
-  onForgetPart: (id: string) => void;
+  onPartQty: (id: string, next: number) => void;
+  onItemQty: (next: number) => void;
   onToggleBuilt: () => void;
-  onToggleOwnedItem: () => void;
 };
+
+function sellable(part: { tradable: boolean; slug: string | null }) {
+  return part.tradable || part.slug !== null;
+}
 
 export function ItemCard({
   item,
   visiblePartIds,
-  ownedParts,
+  qty,
   built,
-  ownedItem,
-  onHavePart,
-  onForgetPart,
+  onPartQty,
+  onItemQty,
   onToggleBuilt,
-  onToggleOwnedItem,
 }: ItemCardProps) {
   const parts = visiblePartIds
     ? item.parts.filter((part) => visiblePartIds.includes(part.id))
     : item.parts;
-  const ownedCount = item.parts.filter((part) => ownedParts.has(part.id)).length;
+  const ownedCount = item.parts.filter((part) => (qty[part.id] ?? 0) > 0).length;
   const ready = item.parts.length > 0 && ownedCount === item.parts.length && !built;
+  const sellCopies = item.parts.reduce((sum, part) => (sellable(part) ? sum + (qty[part.id] ?? 0) : sum), 0);
+  const itemCopies = qty[item.id] ?? 0;
 
   return (
     <article className="rounded-2xl border border-line bg-panel/90 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.22)]">
-      <header className="flex items-start gap-3">
+      <header className="flex flex-wrap items-start gap-3">
         {item.image && <ItemImage src={item.image} large />}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-48">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">
               {KIND_LABEL[item.kind]}
@@ -62,10 +64,14 @@ export function ItemCard({
           {item.parts.length > 0 && (
             <p className="text-sm text-mute">
               {ownedCount} de {item.parts.length} planos
+              {sellCopies > 0 ? ` · ${sellCopies} para vender` : ""}
             </p>
           )}
+          {item.parts.length === 0 && itemCopies > 0 && (
+            <p className="text-sm text-mute">{itemCopies} {itemCopies === 1 ? "copia" : "copias"}</p>
+          )}
         </div>
-        {item.parts.length > 0 ? (
+        {item.parts.length > 0 && (
           <button
             type="button"
             onClick={onToggleBuilt}
@@ -77,20 +83,25 @@ export function ItemCard({
           >
             {built ? "Quitar construido" : "Ya lo construí"}
           </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onToggleOwnedItem}
-            className={
-              ownedItem
-                ? "shrink-0 rounded-full border border-moss/40 px-3 py-2 text-sm text-moss"
-                : "shrink-0 rounded-full bg-gold px-3 py-2 text-sm font-medium text-ink"
-            }
-          >
-            {ownedItem ? "Quitar" : "Lo tengo"}
-          </button>
         )}
       </header>
+
+      {item.parts.length === 0 && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line/80 bg-ink/40 px-3 py-2">
+          <div>
+            <p className="text-bone">Cantidad</p>
+            {item.slug ? (
+              <p className="text-xs text-gold">Vendible en el market</p>
+            ) : (
+              <p className="text-xs text-mute">Este ítem no trae planos</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {item.slug && <PriceButton slug={item.slug} />}
+            <Quantity value={itemCopies} label={item.name} onChange={onItemQty} />
+          </div>
+        </div>
+      )}
 
       {parts.length > 0 && (
         <ul className="mt-3 flex flex-col gap-2">
@@ -98,10 +109,8 @@ export function ItemCard({
             <PartRow
               key={part.id}
               part={part}
-              owned={ownedParts.has(part.id)}
-              locked={built}
-              onHave={() => onHavePart(part.id)}
-              onForget={() => onForgetPart(part.id)}
+              amount={qty[part.id] ?? 0}
+              onQty={(next) => onPartQty(part.id, next)}
             />
           ))}
         </ul>
@@ -188,28 +197,41 @@ function ItemImage({ src, compact = false, large = false }: { src: string; compa
   );
 }
 
-function PartRow({
-  part,
-  owned,
-  locked,
-  onHave,
-  onForget,
-}: {
-  part: CatalogPart;
-  owned: boolean;
-  locked: boolean;
-  onHave: () => void;
-  onForget: () => void;
-}) {
+function Quantity({ value, label, onChange }: { value: number; label: string; onChange: (next: number) => void }) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        aria-label={`Una menos de ${label}`}
+        disabled={value <= 0}
+        onClick={() => onChange(value - 1)}
+        className="grid h-9 w-9 place-items-center rounded-full border border-line text-lg text-bone disabled:opacity-30"
+      >
+        −
+      </button>
+      <span className="w-8 text-center text-sm text-bone">{value}</span>
+      <button
+        type="button"
+        aria-label={`Una más de ${label}`}
+        disabled={value >= 99}
+        onClick={() => onChange(value + 1)}
+        className="grid h-9 w-9 place-items-center rounded-full border border-line text-lg text-bone disabled:opacity-30"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+function PriceButton({ slug }: { slug: string }) {
   const [quote, setQuote] = useState<PriceQuote | null>(null);
   const [priceState, setPriceState] = useState<"idle" | "loading" | "empty" | "error">("idle");
 
   async function consultPrice() {
-    if (!part.slug) return;
     setPriceState("loading");
     setQuote(null);
     try {
-      const next = await fetchPrice(part.slug);
+      const next = await fetchPrice(slug);
       setQuote(next);
       setPriceState(next ? "idle" : "empty");
     } catch {
@@ -218,60 +240,60 @@ function PartRow({
   }
 
   return (
+    <div className="text-right">
+      <button type="button" onClick={() => void consultPrice()} className="rounded-full px-2 py-2 text-sm text-mute hover:text-gold">
+        {priceState === "loading" ? "Consultando…" : "Precio"}
+      </button>
+      {priceState === "empty" && <p className="text-xs text-mute">Nadie lo vende ahora.</p>}
+      {priceState === "error" && <p className="text-xs text-clay">No pude ver el precio.</p>}
+      {quote && (
+        <p className="text-xs text-bone">
+          <span className="font-medium text-gold">{quote.platinum} pl</span>
+          {" · "}
+          <a className="text-gold underline-offset-2 hover:underline" href={quote.url} target="_blank" rel="noreferrer">
+            Market
+          </a>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PartRow({ part, amount, onQty }: { part: CatalogPart; amount: number; onQty: (next: number) => void }) {
+  const vendible = sellable(part);
+  return (
     <li className="rounded-xl border border-line/80 bg-ink/40 px-3 py-2">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           {part.image && <ItemImage src={part.image} compact />}
           <div className="min-w-0">
-            <p className={owned ? "text-mute" : "text-bone"}>{part.title}</p>
-            {owned && <p className="text-xs text-moss">Lo tengo</p>}
+            <p className={amount > 0 ? "text-bone" : "text-mute"}>{part.title}</p>
+            {vendible ? (
+              <p className="text-xs text-gold">{amount > 0 ? `${amount} para vender` : "Vendible en el market"}</p>
+            ) : (
+              amount > 0 && <p className="text-xs text-moss">Lo tengo</p>
+            )}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {part.slug && (
-            <button
-              type="button"
-              onClick={() => void consultPrice()}
-              className="rounded-full px-2 py-2 text-sm text-mute hover:text-gold"
-            >
-              {priceState === "loading" ? "Consultando…" : "Precio"}
+          {part.slug && <PriceButton slug={part.slug} />}
+          {vendible ? (
+            <Quantity value={amount} label={part.title} onChange={onQty} />
+          ) : amount > 0 ? (
+            <button type="button" onClick={() => onQty(0)} className="rounded-full px-3 py-2 text-sm text-mute">
+              Quitar
             </button>
-          )}
-          {!locked && !owned && (
+          ) : (
             <button
               type="button"
-              onClick={onHave}
+              onClick={() => onQty(1)}
               className="rounded-full bg-gold px-3 py-2 text-sm font-medium text-ink"
             >
               Lo tengo
             </button>
           )}
-          {!locked && owned && (
-            <button type="button" onClick={onForget} className="rounded-full px-3 py-2 text-sm text-mute">
-              Quitar
-            </button>
-          )}
         </div>
       </div>
-      {part.slug && priceState === "empty" && (
-        <p className="mt-2 text-sm text-mute">Nadie lo está vendiendo ahora.</p>
-      )}
-      {priceState === "error" && (
-        <p className="mt-2 text-sm text-clay">No pude consultar el precio. Inténtalo otra vez.</p>
-      )}
-      {quote && (
-        <p className="mt-2 text-sm text-bone">
-          <span className="font-medium text-gold">{quote.platinum} pl</span>
-          <span className="text-mute">
-            {" "}
-            · {quote.seller} {quote.live ? "está en el juego" : "no está en línea"}
-          </span>
-          {" · "}
-          <a className="text-gold underline-offset-2 hover:underline" href={quote.url} target="_blank" rel="noreferrer">
-            Ver en el market
-          </a>
-        </p>
-      )}
     </li>
   );
 }

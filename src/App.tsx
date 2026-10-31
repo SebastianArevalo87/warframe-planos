@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CatalogItem, Collection, KindFilter, StatusFilter } from "./types.ts";
 import { loadCollection, saveCollection } from "./lib/storage.ts";
+import { emptyCollection, withAmount } from "./lib/collection.ts";
 import { loadProfile, masteryValue, saveProfile, type Profile, type Session } from "./lib/account.ts";
 import { loadOrCreateRemote, saveRemoteAccount } from "./lib/remote.ts";
 import { sessionFromUser, supabase, supabaseEnabled } from "./lib/supabase.ts";
@@ -55,7 +56,7 @@ export function App() {
   const [accountReady, setAccountReady] = useState(!supabaseEnabled);
   const [accountError, setAccountError] = useState("");
   const [collection, setCollection] = useState<Collection>(() =>
-    supabaseEnabled ? { parts: [], built: [], items: [] } : loadCollection(),
+    supabaseEnabled ? emptyCollection() : loadCollection(),
   );
   const [profile, setProfile] = useState(() =>
     profileForm(supabaseEnabled ? { warframeAccount: "", mastery: null } : loadProfile()),
@@ -141,9 +142,12 @@ export function App() {
     };
   }, [userId]);
 
-  const ownedParts = useMemo(() => new Set(collection.parts), [collection.parts]);
+  const collectionRef = useRef(collection);
   const built = useMemo(() => new Set(collection.built), [collection.built]);
-  const ownedItems = useMemo(() => new Set(collection.items), [collection.items]);
+
+  useEffect(() => {
+    collectionRef.current = collection;
+  }, [collection]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
@@ -315,7 +319,7 @@ export function App() {
 
   function logout() {
     setAccountReady(false);
-    setCollection({ parts: [], built: [], items: [] });
+    setCollection(emptyCollection());
     setProfile(profileForm({ warframeAccount: "", mastery: null }));
     void supabase?.auth.signOut();
   }
@@ -326,32 +330,30 @@ export function App() {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   }
 
-  function havePart(id: string) {
-    if (ownedParts.has(id) || !openItem) return;
-    writeAccount({ ...collection, parts: [...collection.parts, id] });
-    patchOpenRow({ ownedCount: openItem.parts.filter((part) => ownedParts.has(part.id) || part.id === id).length });
+  function setPartQty(id: string, next: number) {
+    if (!openItem) return;
+    const updated = withAmount(collectionRef.current, id, "parts", next);
+    collectionRef.current = updated;
+    writeAccount(updated);
+    patchOpenRow({ ownedCount: openItem.parts.filter((part) => (updated.qty[part.id] ?? 0) > 0).length });
+  }
+
+  function setItemQty(id: string, next: number) {
+    const updated = withAmount(collectionRef.current, id, "items", next);
+    collectionRef.current = updated;
+    writeAccount(updated);
+    patchOpenRow({ ownedItem: (updated.qty[id] ?? 0) > 0 });
   }
 
   function toggleBuilt(id: string) {
-    const builtIds = built.has(id)
-      ? collection.built.filter((itemId) => itemId !== id)
-      : [...collection.built, id];
-    writeAccount({ ...collection, built: builtIds });
-    patchOpenRow({ built: !built.has(id) });
-  }
-
-  function toggleOwnedItem(id: string) {
-    const items = ownedItems.has(id)
-      ? collection.items.filter((itemId) => itemId !== id)
-      : [...collection.items, id];
-    writeAccount({ ...collection, items });
-    patchOpenRow({ ownedItem: !ownedItems.has(id) });
-  }
-
-  function forgetPart(id: string) {
-    if (!openItem) return;
-    writeAccount({ ...collection, parts: collection.parts.filter((partId) => partId !== id) });
-    patchOpenRow({ ownedCount: openItem.parts.filter((part) => ownedParts.has(part.id) && part.id !== id).length });
+    const current = collectionRef.current;
+    const builtIds = current.built.includes(id)
+      ? current.built.filter((itemId) => itemId !== id)
+      : [...current.built, id];
+    const updated = { ...current, built: builtIds };
+    collectionRef.current = updated;
+    writeAccount(updated);
+    patchOpenRow({ built: builtIds.includes(id) });
   }
 
   function openPage(next: AppPage) {
@@ -614,13 +616,11 @@ export function App() {
                 <ItemCard
                   item={openItem}
                   visiblePartIds={null}
-                  ownedParts={ownedParts}
+                  qty={collection.qty}
                   built={built.has(openItem.id)}
-                  ownedItem={ownedItems.has(openItem.id)}
-                  onHavePart={havePart}
-                  onForgetPart={forgetPart}
+                  onPartQty={setPartQty}
+                  onItemQty={(next) => setItemQty(openItem.id, next)}
                   onToggleBuilt={() => toggleBuilt(openItem.id)}
-                  onToggleOwnedItem={() => toggleOwnedItem(openItem.id)}
                 />
               </div>
             )}

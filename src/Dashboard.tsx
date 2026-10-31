@@ -52,6 +52,14 @@ export function Dashboard({
       </section>
 
       <HighlightList
+        title="Para vender"
+        empty="Cuando anotes cuántos planos vendibles tienes, aparecen aquí."
+        items={stats.sellItems}
+        total={stats.sellCopies}
+        stock
+        onOpen={onOpen}
+      />
+      <HighlightList
         title="Listos para fundir"
         empty="Cuando tengas todos los planos de un ítem, aparece aquí."
         items={stats.readyItems}
@@ -124,6 +132,7 @@ function HighlightList({
   total,
   onOpen,
   onSeeAll,
+  stock = false,
 }: {
   title: string;
   empty: string;
@@ -131,11 +140,13 @@ function HighlightList({
   total: number;
   onOpen: (id: string) => void;
   onSeeAll?: () => void;
+  stock?: boolean;
 }) {
   return (
     <section>
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <h2 className="text-lg font-medium text-bone">{title}</h2>
+        {stock && total > 0 && <span className="text-sm text-mute">{total} {total === 1 ? "copia" : "copias"}</span>}
         {onSeeAll && (
           <button type="button" onClick={onSeeAll} className="text-sm text-gold">
             Ver los {total}
@@ -160,7 +171,13 @@ function HighlightList({
                   <span className="block truncate text-bone">{item.name}</span>
                   <span className="text-xs text-mute">
                     {KIND_LABEL[item.kind]}
-                    {item.missing === 0 ? " · listo para fundir" : item.missing === 1 ? " · falta 1 plano" : ` · faltan ${item.missing} planos`}
+                    {item.caption
+                      ? ` · ${item.caption}`
+                      : item.missing === 0
+                        ? " · listo para fundir"
+                        : item.missing === 1
+                          ? " · falta 1 plano"
+                          : ` · faltan ${item.missing} planos`}
                   </span>
                 </span>
               </button>

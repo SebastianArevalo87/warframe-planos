@@ -22,12 +22,19 @@ export async function refreshCatalog(previous?: Catalog): Promise<Catalog> {
   const next = buildCatalog(groups, entries, version, new Date().toISOString(), components);
   if (entries.length === 0 && previous) {
     const slugs = new Map<string, string>();
+    const itemSlugs = new Map<string, string>();
     for (const item of previous.items) {
+      if (item.slug) itemSlugs.set(item.id, item.slug);
       for (const part of item.parts) {
         if (part.slug) slugs.set(part.id, part.slug);
       }
     }
     for (const item of next.items) {
+      const itemSlug = itemSlugs.get(item.id);
+      if (!item.slug && item.parts.length === 0 && itemSlug) {
+        item.slug = itemSlug;
+        item.tradable = true;
+      }
       for (const part of item.parts) {
         const slug = slugs.get(part.id);
         if (!part.slug && slug) {

@@ -1,17 +1,10 @@
 import type { Account } from "./account.ts";
 import { loadOrMigrate } from "./account.ts";
-import type { Collection } from "../types.ts";
+import { normalizeCollection } from "./collection.ts";
 import { supabase } from "./supabase.ts";
 
-function asCollection(value: unknown): Collection {
-  if (!value || typeof value !== "object") return { parts: [], built: [], items: [] };
-  const collection = value as Collection;
-  const strings = (items: unknown) => (Array.isArray(items) ? items.filter((item) => typeof item === "string") : []);
-  return {
-    parts: strings(collection.parts),
-    built: strings(collection.built),
-    items: strings(collection.items),
-  };
+function asCollection(value: unknown) {
+  return normalizeCollection(value);
 }
 
 function asAccount(row: { warframe_account?: unknown; mastery?: unknown; collection?: unknown }): Account {

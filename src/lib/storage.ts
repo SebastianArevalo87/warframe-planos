@@ -1,10 +1,10 @@
 import type { Catalog, Collection, Draft } from "../types.ts";
+import { normalizeCollection } from "./collection.ts";
 
 const COLLECTION_KEY = "warframe-planos-collection";
 const DRAFT_KEY = "warframe-planos-draft";
 const CATALOG_KEY = "warframe-planos-catalog";
 
-const emptyCollection = (): Collection => ({ parts: [], built: [], items: [] });
 const emptyDraft = (): Draft => ({ parts: [], history: [] });
 
 function readJson<T>(storage: Storage, key: string): T | null {
@@ -17,10 +17,6 @@ function readJson<T>(storage: Storage, key: string): T | null {
   }
 }
 
-function isCollection(value: Collection | null): value is Collection {
-  return !!value && Array.isArray(value.parts) && Array.isArray(value.built) && Array.isArray(value.items);
-}
-
 function isDraft(value: Draft | null): value is Draft {
   return !!value && Array.isArray(value.parts) && Array.isArray(value.history);
 }
@@ -29,9 +25,8 @@ function isCatalog(value: Catalog | null): value is Catalog {
   return !!value && Array.isArray(value.items) && typeof value.sourceVersion === "string";
 }
 
-export function loadCollection(): Collection {
-  const value = readJson<Collection>(localStorage, COLLECTION_KEY);
-  return isCollection(value) ? value : emptyCollection();
+export function loadCollection() {
+  return normalizeCollection(readJson(localStorage, COLLECTION_KEY));
 }
 
 export function saveCollection(collection: Collection) {

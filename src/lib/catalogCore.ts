@@ -234,6 +234,12 @@ export function marketEntries(
   return entries;
 }
 
+function matchItemSlug(name: string, uniqueName: string, market: MarketIndex): string | null {
+  const slug = market.byRef.get(uniqueName) ?? market.byName.get(name.toLowerCase()) ?? null;
+  if (!slug || slug.endsWith("_set")) return null;
+  return slug;
+}
+
 function matchSlug(parent: string, partName: string, uniqueName: string, market: MarketIndex): string | null {
   const refs = [uniqueName];
   if (uniqueName.endsWith("Component")) refs.push(uniqueName.replace(/Component$/, "Blueprint"));
@@ -327,12 +333,15 @@ export function buildCatalog(
         return a.short.localeCompare(b.short, "es");
       });
 
+      const itemSlug = parts.length === 0 ? matchItemSlug(name, id, market) : null;
       items.push({
         id,
         name,
         kind,
         vaulted: raw.vaulted === true,
         image: itemImage(raw.imageName),
+        tradable: itemSlug !== null,
+        slug: itemSlug,
         parts,
       });
     }

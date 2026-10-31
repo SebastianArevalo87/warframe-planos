@@ -1,4 +1,5 @@
 import type { Collection } from "../types.ts";
+import { emptyCollection, normalizeCollection } from "./collection.ts";
 import { loadCollection } from "./storage.ts";
 
 export type Session = {
@@ -21,7 +22,6 @@ const SESSION_KEY = "warframe-planos-session";
 const PROFILE_KEY = "warframe-planos-profile";
 const CLAIM_KEY = "warframe-planos-claimed-by";
 
-const emptyCollection = (): Collection => ({ parts: [], built: [], items: [] });
 const emptyProfile = (): Profile => ({ warframeAccount: "", mastery: null });
 
 function readJson(key: string): unknown {
@@ -85,7 +85,7 @@ export function loadAccount(sub: string): Account | null {
   if (!value || typeof value !== "object") return null;
   const account = value as Account;
   if (!isProfile(account) || !isCollection(account.collection)) return null;
-  return account;
+  return { ...account, collection: normalizeCollection(account.collection) };
 }
 
 export function saveAccount(sub: string, account: Account) {

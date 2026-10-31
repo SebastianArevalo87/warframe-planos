@@ -16,6 +16,8 @@ export type CatalogItem = {
   kind: ItemKind;
   vaulted: boolean;
   image: string | null;
+  tradable: boolean;
+  slug: string | null;
   parts: CatalogPart[];
 };
 
@@ -29,6 +31,7 @@ export type Collection = {
   parts: string[];
   built: string[];
   items: string[];
+  qty: Record<string, number>;
 };
 
 export type Draft = {

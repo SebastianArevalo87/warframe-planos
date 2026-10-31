@@ -4,8 +4,13 @@ create table if not exists public.catalog_items (
   kind text not null check (kind in ('warframe', 'primary', 'secondary', 'melee')),
   vaulted boolean not null default false,
   image text,
+  tradable boolean not null default false,
+  slug text,
   updated_at timestamptz not null default now()
 );
+
+alter table public.catalog_items add column if not exists tradable boolean not null default false;
+alter table public.catalog_items add column if not exists slug text;
 
 create table if not exists public.catalog_parts (
   id text not null,
@@ -58,6 +63,23 @@ as $$
   );
 $$;
 
+create or replace function public.stock_qty(col jsonb, key text, owned boolean)
+returns integer
+language sql
+immutable
+as $$
+  select least(99, greatest(0,
+    case
+      when jsonb_typeof(col->'qty') = 'object'
+        and (col->'qty') ? key
+        and (col->'qty'->>key) ~ '^[0-9]+$'
+        then (col->'qty'->>key)::int
+      when owned then 1
+      else 0
+    end
+  ));
+$$;
+
 create or replace function public.dashboard_stats()
 returns jsonb
 language plpgsql
@@ -97,6 +119,25 @@ begin
     from public.catalog_items i
     left join public.catalog_parts p on p.item_id = i.id
     group by i.id
+  ),
+  sellable as (
+    select item_id, label, qty
+    from (
+      select distinct on (cp.id)
+        cp.item_id,
+        cp.short as label,
+        public.stock_qty(col, cp.id, cp.id = any(owned_parts)) as qty
+      from public.catalog_parts cp
+      where cp.tradable or cp.slug is not null
+      order by cp.id, cp.sort_order
+    ) parts
+    where qty > 0
+    union all
+    select i.id, 'Ítem', public.stock_qty(col, i.id, i.id = any(owned_items))
+    from public.catalog_items i
+    where i.slug is not null
+      and not exists (select 1 from public.catalog_parts p where p.item_id = i.id)
+      and public.stock_qty(col, i.id, i.id = any(owned_items)) > 0
   )
   select jsonb_build_object(
     'frames', count(*) filter (where kind = 'warframe' and complete),
@@ -113,6 +154,24 @@ begin
     'almost', count(*) filter (where almost),
     'ownedParts', (select count(*) from public.catalog_parts cp where cp.id = any(owned_parts)),
     'partTotal', (select count(*) from public.catalog_parts),
+    'sellCopies', coalesce((select sum(qty) from sellable), 0),
+    'sellItems', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', id, 'name', name, 'kind', kind, 'image', image, 'missing', 0, 'caption', caption
+      ) order by copies desc, name)
+      from (
+        select id, name, kind, image, copies, caption
+        from (
+          select i.id, i.name, i.kind, i.image, sum(s.qty)::int as copies,
+            string_agg(s.label || ' ×' || s.qty::text, ' · ' order by s.label) as caption
+          from sellable s
+          join public.catalog_items i on i.id = s.item_id
+          group by i.id
+        ) grouped
+        order by copies desc, name
+        limit 6
+      ) picked
+    ), '[]'::jsonb),
     'sourceVersion', (select source_version from public.catalog_meta where id = 1),
     'generatedAt', (select generated_at from public.catalog_meta where id = 1),
     'readyItems', coalesce((
@@ -271,6 +330,8 @@ as $$
     'kind', i.kind,
     'vaulted', i.vaulted,
     'image', i.image,
+    'tradable', i.tradable or i.slug is not null,
+    'slug', i.slug,
     'parts', coalesce((
       select jsonb_agg(
         jsonb_build_object(
@@ -310,13 +371,18 @@ begin
     select 1 from public.catalog_items where id = element->>'id'
   );
 
-  insert into public.catalog_items (id, name, kind, vaulted, image, updated_at)
+  insert into public.catalog_items (id, name, kind, vaulted, image, tradable, slug, updated_at)
   select
     element->>'id',
     element->>'name',
     element->>'kind',
     coalesce((element->>'vaulted')::boolean, false),
     nullif(element->>'image', ''),
+    coalesce((element->>'tradable')::boolean, false) or nullif(element->>'slug', '') is not null,
+    case
+      when right(coalesce(element->>'slug', ''), 4) = '_set' then null
+      else nullif(element->>'slug', '')
+    end,
     now()
   from jsonb_array_elements(coalesce(payload->'items', '[]'::jsonb)) as element
   where element->>'kind' in ('warframe', 'primary', 'secondary', 'melee')
@@ -327,6 +393,8 @@ begin
     kind = excluded.kind,
     vaulted = excluded.vaulted,
     image = excluded.image,
+    tradable = excluded.tradable or public.catalog_items.tradable,
+    slug = coalesce(excluded.slug, public.catalog_items.slug),
     updated_at = now();
 
   insert into public.catalog_parts (id, item_id, short, title, english, tradable, slug, image, sort_order)
@@ -368,12 +436,14 @@ end;
 $$;
 
 revoke all on function public.fold(text) from public;
+revoke all on function public.stock_qty(jsonb, text, boolean) from public;
 revoke all on function public.dashboard_stats() from public;
 revoke all on function public.list_items(text, text, text, integer, integer) from public;
 revoke all on function public.item_detail(text) from public;
 revoke all on function public.upsert_catalog(jsonb) from public;
 
 grant execute on function public.fold(text) to authenticated;
+grant execute on function public.stock_qty(jsonb, text, boolean) to authenticated;
 grant execute on function public.dashboard_stats() to authenticated;
 grant execute on function public.list_items(text, text, text, integer, integer) to authenticated;
 grant execute on function public.item_detail(text) to authenticated;

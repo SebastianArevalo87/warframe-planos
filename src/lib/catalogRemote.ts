@@ -57,15 +57,29 @@ export async function fetchDashboard(): Promise<DashboardStats> {
   return asStats(data);
 }
 
-export async function fetchItemList(kind: string, query: string, status: string): Promise<ItemSummary[]> {
+export const ITEM_PAGE_SIZE = 24;
+
+export type ItemPage = {
+  items: ItemSummary[];
+  total: number;
+};
+
+export async function fetchItemList(kind: string, query: string, status: string, offset = 0): Promise<ItemPage> {
   if (!supabase) throw new Error("supabase");
   const { data, error } = await supabase.rpc("list_items", {
     p_kind: kind,
     p_query: query,
     p_status: status,
+    p_limit: ITEM_PAGE_SIZE,
+    p_offset: offset,
   });
   if (error) throw error;
-  return Array.isArray(data) ? (data as ItemSummary[]) : [];
+  if (!data || typeof data !== "object" || Array.isArray(data)) return { items: [], total: 0 };
+  const page = data as { items?: unknown; total?: unknown };
+  return {
+    items: Array.isArray(page.items) ? (page.items as ItemSummary[]) : [],
+    total: Number(page.total) || 0,
+  };
 }
 
 export async function fetchItemDetail(id: string): Promise<CatalogItem | null> {

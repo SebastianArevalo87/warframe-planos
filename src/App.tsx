@@ -55,6 +55,10 @@ export function App() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [rows, setRows] = useState<ItemSummary[]>([]);
   const [listLoading, setListLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [listTotal, setListTotal] = useState(0);
+  const listRequest = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const [savedTick, setSavedTick] = useState(0);
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("item"));
@@ -152,28 +156,67 @@ export function App() {
 
   useEffect(() => {
     if (!accountReady || !supabaseEnabled) return;
+    const request = ++listRequest.current;
     if (!listingRequested(kindFilter, debouncedQuery, statusFilter)) {
       setRows([]);
+      setListTotal(0);
       setListLoading(false);
+      setLoadingMore(false);
       return;
     }
-    let cancelled = false;
+    setRows([]);
+    setListTotal(0);
     setListLoading(true);
+    setLoadingMore(false);
     setLoadError("");
-    void fetchItemList(kindFilter, debouncedQuery.trim(), statusFilter)
-      .then((next) => {
-        if (!cancelled) setRows(next);
+    void fetchItemList(kindFilter, debouncedQuery.trim(), statusFilter, 0)
+      .then((page) => {
+        if (listRequest.current !== request) return;
+        setRows(page.items);
+        setListTotal(page.total);
       })
       .catch(() => {
-        if (!cancelled) setLoadError("No pude abrir esa lista.");
+        if (listRequest.current !== request) return;
+        setLoadError("No pude abrir esa lista.");
       })
       .finally(() => {
-        if (!cancelled) setListLoading(false);
+        if (listRequest.current === request) setListLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
   }, [accountReady, kindFilter, debouncedQuery, statusFilter, savedTick]);
+
+  const hasMore = rows.length < listTotal;
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore || listLoading || loadingMore || openId) return;
+    const request = listRequest.current;
+    const offset = rows.length;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        setLoadingMore(true);
+        void fetchItemList(kindFilter, debouncedQuery.trim(), statusFilter, offset)
+          .then((page) => {
+            if (listRequest.current !== request) return;
+            setListTotal(page.total);
+            setRows((current) => {
+              const seen = new Set(current.map((item) => item.id));
+              return [...current, ...page.items.filter((item) => !seen.has(item.id))];
+            });
+          })
+          .catch(() => {
+            if (listRequest.current === request) setLoadError("No pude cargar más planos.");
+          })
+          .finally(() => {
+            if (listRequest.current === request) setLoadingMore(false);
+          });
+      },
+      { rootMargin: "480px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, listLoading, loadingMore, openId, rows.length, kindFilter, debouncedQuery, statusFilter]);
 
   useEffect(() => {
     function onPop() {
@@ -571,7 +614,7 @@ export function App() {
                 listos para fundir.
               </p>
             )}
-            {listLoading && <p className="text-mute">Buscando…</p>}
+            {listLoading && rows.length === 0 && <p className="text-mute">Buscando…</p>}
             {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && rows.length === 0 && (
               <p className="text-mute">Ningún plano coincide con este filtro.</p>
             )}
@@ -580,6 +623,13 @@ export function App() {
                 <ItemTile key={row.id} item={row} onOpen={() => showItem(row.id)} />
               ))}
             </div>
+            {hasMore && <div ref={sentinelRef} className="h-8" />}
+            {loadingMore && <p className="mt-3 text-center text-sm text-mute">Cargando más…</p>}
+            {listTotal > rows.length && !loadingMore && rows.length > 0 && (
+              <p className="mt-3 text-center text-xs text-mute">
+                {rows.length} de {listTotal}. Sigue bajando para ver más.
+              </p>
+            )}
           </>
         )}
       </div>

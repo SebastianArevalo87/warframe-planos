@@ -114,7 +114,15 @@ begin
 end;
 $$;
 
-create or replace function public.list_items(p_kind text, p_query text, p_status text)
+drop function if exists public.list_items(text, text, text);
+
+create or replace function public.list_items(
+  p_kind text,
+  p_query text,
+  p_status text,
+  p_limit integer default 24,
+  p_offset integer default 0
+)
 returns jsonb
 language plpgsql
 stable
@@ -125,11 +133,13 @@ declare
   col jsonb := '{"parts":[],"built":[],"items":[]}'::jsonb;
   words text[];
   result jsonb;
+  page_limit integer := least(greatest(coalesce(p_limit, 24), 1), 60);
+  page_offset integer := greatest(coalesce(p_offset, 0), 0);
 begin
   if coalesce(p_kind, 'all') = 'all'
      and length(btrim(coalesce(p_query, ''))) < 2
      and coalesce(p_status, 'missing') is distinct from 'ready' then
-    return '[]'::jsonb;
+    return '{"items":[],"total":0}'::jsonb;
   end if;
 
   select collection into col from public.profiles where user_id = auth.uid();
@@ -163,42 +173,57 @@ begin
     left join public.catalog_parts p on p.item_id = i.id
     where coalesce(p_kind, 'all') = 'all' or i.kind = p_kind
     group by i.id, o.parts, o.built, o.items
-  )
-  select coalesce(jsonb_agg(
-    jsonb_build_object(
-      'id', id,
-      'name', name,
-      'kind', kind,
-      'vaulted', vaulted,
-      'image', image,
-      'partCount', part_count,
-      'ownedCount', owned_count,
-      'built', is_built,
-      'ownedItem', owned_item
-    ) order by name
-  ), '[]'::jsonb)
-  into result
-  from base
-  where (
-    coalesce(array_length(words, 1), 0) = 0
-    or not exists (
-      select 1 from unnest(words) as word
-      where haystack not like '%' || word || '%'
+  ),
+  filtered as (
+    select *
+    from base
+    where (
+      coalesce(array_length(words, 1), 0) = 0
+      or not exists (
+        select 1 from unnest(words) as word
+        where haystack not like '%' || word || '%'
+      )
+    )
+    and (
+      coalesce(p_status, 'all') = 'all'
+      or (
+        p_status = 'missing'
+        and not (is_built or (part_count = 0 and owned_item))
+      )
+      or (
+        p_status = 'ready'
+        and part_count > 0
+        and not is_built
+        and owned_count = part_count
+      )
     )
   )
-  and (
-    coalesce(p_status, 'all') = 'all'
-    or (
-      p_status = 'missing'
-      and not (is_built or (part_count = 0 and owned_item))
-    )
-    or (
-      p_status = 'ready'
-      and part_count > 0
-      and not is_built
-      and owned_count = part_count
-    )
-  );
+  select jsonb_build_object(
+    'total', (select count(*) from filtered),
+    'items', coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'id', id,
+          'name', name,
+          'kind', kind,
+          'vaulted', vaulted,
+          'image', image,
+          'partCount', part_count,
+          'ownedCount', owned_count,
+          'built', is_built,
+          'ownedItem', owned_item
+        ) order by name
+      )
+      from (
+        select *
+        from filtered
+        order by name
+        limit page_limit
+        offset page_offset
+      ) page
+    ), '[]'::jsonb)
+  )
+  into result;
 
   return result;
 end;
@@ -315,13 +340,13 @@ $$;
 
 revoke all on function public.fold(text) from public;
 revoke all on function public.dashboard_stats() from public;
-revoke all on function public.list_items(text, text, text) from public;
+revoke all on function public.list_items(text, text, text, integer, integer) from public;
 revoke all on function public.item_detail(text) from public;
 revoke all on function public.upsert_catalog(jsonb) from public;
 
 grant execute on function public.fold(text) to authenticated;
 grant execute on function public.dashboard_stats() to authenticated;
-grant execute on function public.list_items(text, text, text) to authenticated;
+grant execute on function public.list_items(text, text, text, integer, integer) to authenticated;
 grant execute on function public.item_detail(text) to authenticated;
 grant execute on function public.upsert_catalog(jsonb) to authenticated;
 

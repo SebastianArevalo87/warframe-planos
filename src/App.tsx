@@ -56,6 +56,19 @@ function ownedPartCount(item: CatalogItem, owned: Set<string>, draft: Set<string
   return item.parts.filter((part) => owned.has(part.id) || draft.has(part.id)).length;
 }
 
+function copyMissingImages(catalog: Catalog, images: Catalog): Catalog {
+  const byId = new Map(images.items.map((item) => [item.id, item.image]));
+  let filled = false;
+  const items = catalog.items.map((item) => {
+    if (item.image) return item;
+    const image = byId.get(item.id);
+    if (!image) return item;
+    filled = true;
+    return { ...item, image };
+  });
+  return filled ? { ...catalog, items } : catalog;
+}
+
 function isReady(item: CatalogItem, collection: Collection, draft: Set<string>): boolean {
   if (isComplete(item, collection) || item.parts.length === 0) return false;
   return ownedPartCount(item, new Set(collection.parts), draft) === item.parts.length;
@@ -102,7 +115,7 @@ export function App() {
         return response.json() as Promise<Catalog>;
       })
       .then((bundled) => {
-        if (stored && stored.generatedAt > bundled.generatedAt) setCatalog(stored);
+        if (stored && stored.generatedAt > bundled.generatedAt) setCatalog(copyMissingImages(stored, bundled));
         else setCatalog(bundled);
       })
       .catch(() => {

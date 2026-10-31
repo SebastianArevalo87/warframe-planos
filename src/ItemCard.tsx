@@ -44,8 +44,9 @@ export function ItemCard({
 
   return (
     <article className="rounded-2xl border border-line bg-panel/90 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.22)]">
-      <header className="flex items-start justify-between gap-3">
-        <div>
+      <header className="flex items-start gap-3">
+        {item.image && <ItemImage src={item.image} />}
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">
               {KIND_LABEL[item.kind]}
@@ -111,6 +112,23 @@ export function ItemCard({
         </ul>
       )}
     </article>
+  );
+}
+
+function ItemImage({ src }: { src: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <img
+      src={src}
+      alt=""
+      width={56}
+      height={56}
+      loading="lazy"
+      decoding="async"
+      className="h-14 w-14 shrink-0 rounded-xl bg-ink object-contain"
+      onError={() => setFailed(true)}
+    />
   );
 }
 

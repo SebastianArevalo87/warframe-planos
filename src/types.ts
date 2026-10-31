@@ -14,6 +14,7 @@ export type CatalogItem = {
   name: string;
   kind: ItemKind;
   vaulted: boolean;
+  image: string | null;
   parts: CatalogPart[];
 };
 

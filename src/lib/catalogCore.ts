@@ -12,8 +12,17 @@ export type RawItem = {
   category?: string;
   masterable?: boolean;
   vaulted?: boolean;
+  imageName?: string;
   components?: RawComponent[];
 };
+
+const IMAGE_BASE = "https://cdn.warframestat.us/img/";
+
+export function itemImage(imageName?: string): string | null {
+  const name = imageName?.trim();
+  if (!name) return null;
+  return `${IMAGE_BASE}${encodeURIComponent(name)}`;
+}
 
 export type MarketEntry = {
   slug: string;
@@ -307,6 +316,7 @@ export function buildCatalog(
         name,
         kind,
         vaulted: raw.vaulted === true,
+        image: itemImage(raw.imageName),
         parts,
       });
     }

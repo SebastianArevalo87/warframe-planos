@@ -17,6 +17,7 @@ const marketProxy = {
 };
 
 export default defineConfig({
+  base: process.env.VITE_BASE ?? "/",
   plugins: [react(), tailwindcss()],
   server: { proxy: marketProxy },
   preview: { proxy: marketProxy },

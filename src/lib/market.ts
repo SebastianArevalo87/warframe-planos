@@ -11,8 +11,13 @@ type Order = {
   user?: { ingameName?: string; status?: string };
 };
 
+function marketUrl(path: string): string {
+  if (import.meta.env.DEV) return `/market${path}`;
+  return `https://api.warframe.market${path}`;
+}
+
 export async function fetchPrice(slug: string): Promise<PriceQuote | null> {
-  const response = await fetch(`/market/v2/orders/item/${encodeURIComponent(slug)}/top`);
+  const response = await fetch(marketUrl(`/v2/orders/item/${encodeURIComponent(slug)}/top`));
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("price");
   const json = (await response.json()) as { data?: { sell?: Order[] } };

@@ -61,7 +61,7 @@ export function App() {
 
   useEffect(() => {
     const stored = loadStoredCatalog();
-    void fetch("/catalog.json")
+    void fetch(`${import.meta.env.BASE_URL}catalog.json`)
       .then((response) => {
         if (!response.ok) throw new Error("catalog");
         return response.json() as Promise<Catalog>;
@@ -202,7 +202,7 @@ export function App() {
     setNotice("");
     try {
       const previous = new Set(catalog.items.map((item) => item.id));
-      const next = await refreshCatalog();
+      const next = await refreshCatalog(catalog);
       const added = next.items.filter((item) => !previous.has(item.id));
       saveStoredCatalog(next);
       setCatalog(next);

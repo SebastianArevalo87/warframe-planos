@@ -38,7 +38,9 @@ export function ItemCard({
     : item.parts;
   const ownedCount = item.parts.filter((part) => (qty[part.id] ?? 0) > 0).length;
   const ready = item.parts.length > 0 && ownedCount === item.parts.length && !built;
-  const sellCopies = item.parts.reduce((sum, part) => (sellable(part) ? sum + (qty[part.id] ?? 0) : sum), 0);
+  const sellCopies = built
+    ? item.parts.reduce((sum, part) => (sellable(part) ? sum + (qty[part.id] ?? 0) : sum), 0)
+    : 0;
   const itemCopies = qty[item.id] ?? 0;
 
   return (
@@ -110,6 +112,7 @@ export function ItemCard({
               key={part.id}
               part={part}
               amount={qty[part.id] ?? 0}
+              built={built}
               onQty={(next) => onPartQty(part.id, next)}
             />
           ))}
@@ -259,8 +262,19 @@ function PriceButton({ slug }: { slug: string }) {
   );
 }
 
-function PartRow({ part, amount, onQty }: { part: CatalogPart; amount: number; onQty: (next: number) => void }) {
+function PartRow({
+  part,
+  amount,
+  built,
+  onQty,
+}: {
+  part: CatalogPart;
+  amount: number;
+  built: boolean;
+  onQty: (next: number) => void;
+}) {
   const vendible = sellable(part);
+  const forSale = vendible && built && amount > 0;
   return (
     <li className="rounded-xl border border-line/80 bg-ink/40 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -268,8 +282,8 @@ function PartRow({ part, amount, onQty }: { part: CatalogPart; amount: number; o
           {part.image && <ItemImage src={part.image} compact />}
           <div className="min-w-0">
             <p className={amount > 0 ? "text-bone" : "text-mute"}>{part.title}</p>
-            {vendible ? (
-              <p className="text-xs text-gold">{amount > 0 ? `${amount} para vender` : "Vendible en el market"}</p>
+            {forSale ? (
+              <p className="text-xs text-gold">{amount} para vender</p>
             ) : (
               amount > 0 && <p className="text-xs text-moss">Lo tengo</p>
             )}

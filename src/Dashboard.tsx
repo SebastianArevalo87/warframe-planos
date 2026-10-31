@@ -53,7 +53,7 @@ export function Dashboard({
 
       <HighlightList
         title="Para vender"
-        empty="Cuando anotes cuántos planos vendibles tienes, aparecen aquí."
+        empty="Aquí salen los planos vendibles de ítems que ya construiste, y los ítems sin planos que sí tienes."
         items={stats.sellItems}
         total={stats.sellCopies}
         stock

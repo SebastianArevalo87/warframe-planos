@@ -128,7 +128,8 @@ begin
         cp.short as label,
         public.stock_qty(col, cp.id, cp.id = any(owned_parts)) as qty
       from public.catalog_parts cp
-      where cp.tradable or cp.slug is not null
+      where (cp.tradable or cp.slug is not null)
+        and cp.item_id = any(built_ids)
       order by cp.id, cp.sort_order
     ) parts
     where qty > 0

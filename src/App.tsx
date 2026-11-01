@@ -12,6 +12,8 @@ import { Dashboard } from "./Dashboard.tsx";
 import { SellPage } from "./SellPage.tsx";
 import { FilterBar } from "./FilterBar.tsx";
 import { ItemCard, ItemTile } from "./ItemCard.tsx";
+import { RelicModal } from "./RelicModal.tsx";
+import { Sheet } from "./Sheet.tsx";
 import { Gate, LoginScreen } from "./Login.tsx";
 
 const KINDS: KindFilter[] = ["all", "weapon", "warframe", "primary", "secondary", "melee"];
@@ -99,6 +101,7 @@ export function App() {
   const [prices, setPrices] = useState<Record<string, PriceQuote | null>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
   const [openId, setOpenId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("item"));
+  const [relicsOpen, setRelicsOpen] = useState(false);
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(() => Boolean(new URLSearchParams(window.location.search).get("item")));
   const accountMenuRef = useRef<HTMLDivElement>(null);
@@ -329,14 +332,16 @@ export function App() {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") hideItem();
+      if (event.key !== "Escape") return;
+      if (relicsOpen) setRelicsOpen(false);
+      else hideItem();
     }
     document.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = previous;
       document.removeEventListener("keydown", onKey);
     };
-  }, [openId]);
+  }, [openId, relicsOpen]);
 
   function writeAccount(next: Collection, nextProfile = profile) {
     setCollection(next);
@@ -463,6 +468,7 @@ export function App() {
     url.searchParams.set("item", id);
     window.history.pushState({ item: id }, "", url);
     setDetailLoading(true);
+    setRelicsOpen(false);
     setOpenId(id);
   }
 
@@ -470,6 +476,7 @@ export function App() {
     const url = new URL(window.location.href);
     url.searchParams.delete("item");
     window.history.pushState({}, "", url);
+    setRelicsOpen(false);
     setOpenId(null);
   }
 
@@ -684,44 +691,28 @@ export function App() {
         </div>
       )}
       {openId && (
-        <div
-          className="fixed inset-0 z-40 flex items-end justify-center bg-ink/80 p-3 sm:items-center"
-          onClick={hideItem}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={openItem?.name ?? "Detalle del plano"}
-            className="max-h-[min(92dvh,44rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-line bg-ink p-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-2 flex justify-end">
-              <button type="button" onClick={hideItem} className="rounded-full px-3 py-2 text-sm text-gold">
-                Cerrar
-              </button>
-            </div>
-            {detailLoading && <p className="px-2 pb-4 text-mute">Abriendo el plano…</p>}
-            {!detailLoading && !openItem && <p className="px-2 pb-4 text-mute">Ese plano no está en la base.</p>}
-            {!detailLoading && openItem && (
-              <div>
-                <ItemCard
-                  item={openItem}
-                  visiblePartIds={null}
-                  qty={collection.qty}
-                  built={built.has(openItem.id)}
-                  craftedParts={collection.crafted
-                    .filter((key) => key.startsWith(`${openItem.id}::`))
-                    .map((key) => key.slice(openItem.id.length + 2))}
-                  onToggleCrafted={(partId) => toggleCrafted(openItem.id, partId)}
-                  onPartQty={setPartQty}
-                  onItemQty={(next) => setItemQty(openItem.id, next)}
-                  onToggleBuilt={() => toggleBuilt(openItem.id)}
-                />
-              </div>
-            )}
-          </div>
-        </div>
+        <Sheet label={openItem?.name ?? "Detalle del plano"} onClose={hideItem}>
+          {detailLoading && <p className="px-2 pb-4 text-mute">Abriendo el plano…</p>}
+          {!detailLoading && !openItem && <p className="px-2 pb-4 text-mute">Ese plano no está en la base.</p>}
+          {!detailLoading && openItem && (
+            <ItemCard
+              item={openItem}
+              visiblePartIds={null}
+              qty={collection.qty}
+              built={built.has(openItem.id)}
+              craftedParts={collection.crafted
+                .filter((key) => key.startsWith(`${openItem.id}::`))
+                .map((key) => key.slice(openItem.id.length + 2))}
+              onToggleCrafted={(partId) => toggleCrafted(openItem.id, partId)}
+              onPartQty={setPartQty}
+              onItemQty={(next) => setItemQty(openItem.id, next)}
+              onToggleBuilt={() => toggleBuilt(openItem.id)}
+              onShowRelics={() => setRelicsOpen(true)}
+            />
+          )}
+        </Sheet>
       )}
+      {relicsOpen && openItem && <RelicModal item={openItem} onClose={() => setRelicsOpen(false)} />}
     </div>
   );
 }

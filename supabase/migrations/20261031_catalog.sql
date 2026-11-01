@@ -24,11 +24,13 @@ create table if not exists public.catalog_parts (
   slug text,
   image text,
   materials jsonb not null default '[]'::jsonb,
+  relics jsonb not null default '[]'::jsonb,
   sort_order integer not null default 0,
   primary key (item_id, id)
 );
 
 alter table public.catalog_parts add column if not exists materials jsonb not null default '[]'::jsonb;
+alter table public.catalog_parts add column if not exists relics jsonb not null default '[]'::jsonb;
 
 alter table public.catalog_parts drop constraint if exists catalog_parts_pkey;
 alter table public.catalog_parts add primary key (item_id, id);
@@ -454,7 +456,8 @@ as $$
           'tradable', p.tradable,
           'slug', p.slug,
           'image', p.image,
-          'materials', coalesce(p.materials, '[]'::jsonb)
+          'materials', coalesce(p.materials, '[]'::jsonb),
+          'relics', coalesce(p.relics, '[]'::jsonb)
         ) order by p.sort_order, p.title
       )
       from public.catalog_parts p
@@ -512,7 +515,7 @@ begin
     set_slug = coalesce(excluded.set_slug, public.catalog_items.set_slug),
     updated_at = now();
 
-  insert into public.catalog_parts (id, item_id, short, title, english, tradable, slug, image, materials, sort_order)
+  insert into public.catalog_parts (id, item_id, short, title, english, tradable, slug, image, materials, relics, sort_order)
   select
     part->>'id',
     element->>'id',
@@ -525,6 +528,14 @@ begin
     case
       when jsonb_typeof(part->'materials') = 'array' then part->'materials'
       else '[]'::jsonb
+    end,
+    case
+      when jsonb_typeof(part->'relics') = 'array' then part->'relics'
+      else coalesce((
+        select cp.relics
+        from public.catalog_parts cp
+        where cp.item_id = element->>'id' and cp.id = part->>'id'
+      ), '[]'::jsonb)
     end,
     ordinality::integer
   from jsonb_array_elements(coalesce(payload->'items', '[]'::jsonb)) as element
@@ -542,6 +553,7 @@ begin
       when jsonb_array_length(excluded.materials) = 0 then public.catalog_parts.materials
       else excluded.materials
     end,
+    relics = excluded.relics,
     sort_order = excluded.sort_order;
 
   insert into public.catalog_meta (id, source_version, generated_at)

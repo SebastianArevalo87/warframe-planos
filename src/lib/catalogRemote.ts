@@ -1,4 +1,4 @@
-import type { Catalog, CatalogItem, CatalogPart, CraftMaterial, ItemKind } from "../types.ts";
+import type { Catalog, CatalogItem, CatalogPart, CraftMaterial, ItemKind, PartRelic, RelicRarity } from "../types.ts";
 import { supabase } from "./supabase.ts";
 
 export type DashboardHighlight = {
@@ -165,7 +165,21 @@ function asPart(value: unknown): CatalogPart | null {
     slug,
     image: typeof part.image === "string" ? part.image : null,
     materials: asMaterials(part.materials),
+    relics: asRelics(part.relics),
   };
+}
+
+const RARITIES = new Set<RelicRarity>(["common", "uncommon", "rare"]);
+
+function asRelics(value: unknown): PartRelic[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const relic = entry as Partial<PartRelic>;
+    if (typeof relic.name !== "string" || relic.name.length < 1 || relic.name.length > 40) return [];
+    if (!RARITIES.has(relic.rarity as RelicRarity)) return [];
+    return [{ name: relic.name, rarity: relic.rarity as RelicRarity, vaulted: relic.vaulted === true }];
+  });
 }
 
 function asMaterials(value: unknown): CraftMaterial[] {

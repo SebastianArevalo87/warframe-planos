@@ -8,7 +8,7 @@ export function MaterialTotals({ title, note, materials }: { title: string; note
     <section className="rounded-2xl border border-line bg-panel/80 px-4 py-3">
       <p className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">{title}</p>
       {note && <p className="mt-1 text-xs text-mute">{note}</p>}
-      <div className="mt-2 max-h-72 overflow-y-auto">
+      <div className="mt-2 max-h-72 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-y-contain">
         <MaterialList materials={materials} columns />
       </div>
     </section>
@@ -29,7 +29,7 @@ export function MaterialList({
       {materials.map((material) => (
         <li key={material.id} className="flex min-w-0 items-center gap-2 rounded-lg bg-ink/60 px-2 py-1.5">
           <MaterialIcon image={material.image} />
-          <span className={muted ? "min-w-0 flex-1 text-sm leading-snug text-mute line-through" : "min-w-0 flex-1 text-sm leading-snug text-bone"}>
+          <span className={muted ? "min-w-0 flex-1 text-sm leading-snug break-words text-mute line-through" : "min-w-0 flex-1 text-sm leading-snug break-words text-bone"}>
             {material.name}
           </span>
           <span className="shrink-0 text-sm font-medium text-gold tabular-nums">{formatAmount(material.count)}</span>

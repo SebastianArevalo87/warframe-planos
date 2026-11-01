@@ -22,6 +22,7 @@ type ItemCardProps = {
   onPartQty: (id: string, next: number) => void;
   onItemQty: (next: number) => void;
   onToggleBuilt: () => void;
+  onShowRelics?: () => void;
 };
 
 function sellable(part: { tradable: boolean; slug: string | null }) {
@@ -38,6 +39,7 @@ export function ItemCard({
   onPartQty,
   onItemQty,
   onToggleBuilt,
+  onShowRelics,
 }: ItemCardProps) {
   const parts = visiblePartIds
     ? item.parts.filter((part) => visiblePartIds.includes(part.id))
@@ -80,7 +82,7 @@ export function ItemCard({
   }, [missingKey]);
 
   return (
-    <article className="rounded-2xl border border-line bg-panel/90 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.22)]">
+    <article className="min-w-0 max-w-full rounded-2xl border border-line bg-panel/90 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.22)]">
       <header className="flex flex-wrap items-start gap-3">
         {item.image && <ItemImage src={item.image} large />}
         <div className="min-w-0 flex-1 basis-48">
@@ -110,17 +112,28 @@ export function ItemCard({
           )}
         </div>
         {item.parts.length > 0 && (
-          <button
-            type="button"
-            onClick={onToggleBuilt}
-            className={
-              built
-                ? "shrink-0 rounded-full border border-moss/40 px-3 py-2 text-sm text-moss"
-                : "shrink-0 rounded-full border border-line px-3 py-2 text-sm text-bone hover:border-gold"
-            }
-          >
-            {built ? "Quitar construido" : "Ya lo construí"}
-          </button>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            {onShowRelics && item.parts.some((part) => part.relics.length > 0) && (
+              <button
+                type="button"
+                onClick={onShowRelics}
+                className="rounded-full border border-line px-3 py-2 text-sm text-bone hover:border-gold"
+              >
+                Reliquias
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onToggleBuilt}
+              className={
+                built
+                  ? "rounded-full border border-moss/40 px-3 py-2 text-sm text-moss"
+                  : "rounded-full border border-line px-3 py-2 text-sm text-bone hover:border-gold"
+              }
+            >
+              {built ? "Quitar construido" : "Ya lo construí"}
+            </button>
+          </div>
         )}
       </header>
 
@@ -372,12 +385,12 @@ function PartRow({
   const forSale = vendible && built && amount > 0;
   const needsBuy = !built && amount === 0 && part.slug !== null;
   return (
-    <li className="rounded-xl border border-line/80 bg-ink/40 px-3 py-2">
+    <li className="min-w-0 rounded-xl border border-line/80 bg-ink/40 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto sm:flex-1">
           {part.image && <ItemImage src={part.image} compact />}
           <div className="min-w-0">
-            <p className={amount > 0 ? "text-bone" : "text-mute"}>{part.title}</p>
+            <p className={amount > 0 ? "break-words text-bone" : "break-words text-mute"}>{part.title}</p>
             {forSale ? (
               <p className="text-xs text-gold">{amount} para vender</p>
             ) : (
@@ -385,7 +398,7 @@ function PartRow({
             )}
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex max-w-full flex-wrap items-center gap-2">
           {needsBuy && part.slug && (
             <BuyLink label={part.title} slug={part.slug} quote={quote} pending={pricePending} />
           )}

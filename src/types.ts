@@ -7,6 +7,14 @@ export type CraftMaterial = {
   image: string | null;
 };
 
+export type RelicRarity = "common" | "uncommon" | "rare";
+
+export type PartRelic = {
+  name: string;
+  rarity: RelicRarity;
+  vaulted: boolean;
+};
+
 export type CatalogPart = {
   id: string;
   short: string;
@@ -16,6 +24,7 @@ export type CatalogPart = {
   slug: string | null;
   image: string | null;
   materials: CraftMaterial[];
+  relics: PartRelic[];
 };
 
 export type CatalogItem = {

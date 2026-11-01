@@ -1,5 +1,6 @@
-import type { Catalog, CatalogItem, CatalogPart, ItemKind } from "../types.ts";
+import type { Catalog, CatalogItem, CatalogPart, ItemKind, PartRelic } from "../types.ts";
 import { indexRecipes, materialsForPart, type RawRecipe, type RecipeBook } from "./materials.ts";
+import { indexRelicDrops, relicKey, type RawRelic } from "./relics.ts";
 
 export type RawComponent = {
   name?: string;
@@ -35,6 +36,8 @@ export type MarketEntry = {
 const DATA_FILES = ["Warframes", "Primary", "Secondary", "Melee"];
 const DATA_BASE = "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json";
 const RECIPES_URL = "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/senpai/ExportRecipes.json";
+const RELICS_URL = "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/senpai/ExportRelics.json";
+const REWARDS_URL = "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/senpai/ExportRewards.json";
 
 const IMAGE_FILES = ["Misc", "Resources", "Fish", "Gear"];
 
@@ -45,6 +48,7 @@ export async function fetchSource(): Promise<{
   recipes: RecipeBook;
   images: Map<string, string>;
   names: Map<string, string>;
+  relics: Map<string, PartRelic[]>;
 }> {
   const commitResponse = await fetch("https://api.github.com/repos/WFCD/warframe-items/commits/master", {
     headers: {
@@ -56,7 +60,7 @@ export async function fetchSource(): Promise<{
   const commit = (await commitResponse.json()) as { sha?: string };
   const version = commit.sha?.slice(0, 7) ?? "github";
 
-  const [groups, components, recipes, materialIndex] = await Promise.all([
+  const [groups, components, recipes, materialIndex, relics] = await Promise.all([
     Promise.all(
       DATA_FILES.map(async (file) => {
         const response = await fetch(`${DATA_BASE}/${file}.json`);
@@ -76,9 +80,22 @@ export async function fetchSource(): Promise<{
       })
       .catch(() => indexRecipes({})),
     fetchMaterialImages(),
+    fetchRelicDrops(),
   ]);
 
-  return { version, groups, components, recipes, images: materialIndex.images, names: materialIndex.names };
+  return { version, groups, components, recipes, images: materialIndex.images, names: materialIndex.names, relics };
+}
+
+async function fetchRelicDrops(): Promise<Map<string, PartRelic[]>> {
+  try {
+    const [relicsResponse, rewardsResponse] = await Promise.all([fetch(RELICS_URL), fetch(REWARDS_URL)]);
+    if (!relicsResponse.ok || !rewardsResponse.ok) return new Map();
+    const relics = (await relicsResponse.json()) as Record<string, RawRelic>;
+    const rewards = (await rewardsResponse.json()) as Record<string, unknown>;
+    return indexRelicDrops(relics, rewards);
+  } catch {
+    return new Map();
+  }
 }
 
 async function fetchMaterialImages(): Promise<{ images: Map<string, string>; names: Map<string, string> }> {
@@ -379,6 +396,7 @@ export function buildCatalog(
   recipes: RecipeBook = indexRecipes({}),
   images: ReadonlyMap<string, string> = new Map(),
   names: ReadonlyMap<string, string> = new Map(),
+  relics: ReadonlyMap<string, PartRelic[]> = new Map(),
 ): Catalog {
   const market = indexMarket(entries);
   const componentById = new Map<string, RawComponent>();
@@ -418,6 +436,7 @@ export function buildCatalog(
           slug,
           image: itemImage(resolved.imageName) ?? itemImage(images.get(partId)),
           materials: materialsForPart(partId, recipes, images, names),
+          relics: relics.get(relicKey(partId)) ?? [],
         });
       }
 

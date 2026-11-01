@@ -519,7 +519,7 @@ export function App() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-16">
+    <div className="mx-auto w-full max-w-3xl px-4 pb-16 lg:max-w-6xl lg:px-8 xl:max-w-7xl">
       <header className="pt-6 pb-4">
         <div ref={accountMenuRef} className="relative">
           <div className="flex items-start justify-between gap-3">
@@ -695,7 +695,7 @@ export function App() {
         {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && rows.length === 0 && (
           <p className="text-mute">Ningún plano coincide con este filtro.</p>
         )}
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
           {rows.map((row) => (
             <ItemTile key={row.id} item={row} onOpen={() => showItem(row.id)} />
           ))}

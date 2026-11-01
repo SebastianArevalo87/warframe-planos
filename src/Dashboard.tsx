@@ -29,15 +29,15 @@ export function Dashboard({
   const weaponPercent = percent(stats.weapons, stats.weaponTotal);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="grid grid-cols-2 gap-x-3 gap-y-6 lg:grid-cols-6 lg:gap-4">
       {(accountName || mastery) && (
-        <p className="text-sm text-mute">
+        <p className="order-1 col-span-2 text-sm text-mute lg:col-span-6">
           {accountName || "Sin cuenta de Warframe"}
           {mastery ? ` · maestría ${mastery}` : ""}
         </p>
       )}
 
-      <section className="grid grid-cols-2 gap-3">
+      <div className="order-2 h-full lg:col-span-2">
         <BigNumber
           label="Warframes"
           value={stats.frames}
@@ -45,6 +45,8 @@ export function Dashboard({
           percent={framePercent}
           onClick={() => onSearch("warframe", "built")}
         />
+      </div>
+      <div className="order-3 h-full lg:col-span-2">
         <BigNumber
           label="Armas"
           value={stats.weapons}
@@ -52,9 +54,12 @@ export function Dashboard({
           percent={weaponPercent}
           onClick={() => onSearch("weapon", "built")}
         />
-      </section>
+      </div>
+      <div className="order-6 col-span-2 h-full lg:order-4 lg:col-span-2">
+        <SellCard copies={stats.sellCopies} items={stats.sellItemCount} onClick={onSell} />
+      </div>
 
-      <section className="grid grid-cols-3 gap-2">
+      <section className="order-4 col-span-2 grid grid-cols-3 gap-2 lg:order-5 lg:col-span-6 xl:col-span-3">
         <SmallMeter label="Primarias" value={stats.primary} total={stats.primaryTotal} onClick={() => onSearch("primary", "built")} />
         <SmallMeter
           label="Secundarias"
@@ -65,30 +70,30 @@ export function Dashboard({
         <SmallMeter label="Melee" value={stats.melee} total={stats.meleeTotal} onClick={() => onSearch("melee", "built")} />
       </section>
 
-      <section className="grid grid-cols-3 gap-2">
+      <section className="order-5 col-span-2 grid grid-cols-3 gap-2 lg:order-6 lg:col-span-6 xl:col-span-3">
         <CountCard label="Planos tuyos" value={stats.ownedParts} hint={`de ${stats.partTotal}`} onClick={() => onSearch("all", "owned")} />
         <CountCard label="Listos" value={stats.ready} hint="para fundir" onClick={() => onSearch("all", "ready")} />
         <CountCard label="Casi" value={stats.almost} hint="faltan 1 o 2" onClick={() => onSearch("all", "almost")} />
       </section>
 
-      <SellCard copies={stats.sellCopies} items={stats.sellItemCount} onClick={onSell} />
-
-      <HighlightList
-        title="Listos para fundir"
-        empty="Cuando tengas todos los planos de un ítem, aparece aquí."
-        items={stats.readyItems}
-        total={stats.ready}
-        onOpen={onOpen}
-        onSeeAll={stats.ready > stats.readyItems.length ? () => onSearch("all", "ready") : undefined}
-      />
-      <HighlightList
-        title="Les falta poco"
-        empty="Todavía no hay ítems a uno o dos planos de estar listos."
-        items={stats.almostItems}
-        total={stats.almost}
-        onOpen={onOpen}
-        onSeeAll={stats.almost > stats.almostItems.length ? () => onSearch("all", "almost") : undefined}
-      />
+      <div className="order-7 col-span-2 flex flex-col gap-6 lg:col-span-6 lg:grid lg:grid-cols-2 lg:gap-8">
+        <HighlightList
+          title="Listos para fundir"
+          empty="Cuando tengas todos los planos de un ítem, aparece aquí."
+          items={stats.readyItems}
+          total={stats.ready}
+          onOpen={onOpen}
+          onSeeAll={stats.ready > stats.readyItems.length ? () => onSearch("all", "ready") : undefined}
+        />
+        <HighlightList
+          title="Les falta poco"
+          empty="Todavía no hay ítems a uno o dos planos de estar listos."
+          items={stats.almostItems}
+          total={stats.almost}
+          onOpen={onOpen}
+          onSeeAll={stats.almost > stats.almostItems.length ? () => onSearch("all", "almost") : undefined}
+        />
+      </div>
     </div>
   );
 }
@@ -116,7 +121,7 @@ function BigNumber({
       type="button"
       onClick={onClick}
       aria-label={`${label}: ${value} de ${total} construidos. Ver la búsqueda.`}
-      className="rounded-2xl border border-line bg-panel px-4 py-4 text-left hover:border-gold"
+      className="h-full w-full rounded-2xl border border-line bg-panel px-4 py-4 text-left hover:border-gold"
     >
       <p className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">{label}</p>
       <p className="mt-2 text-4xl font-medium text-bone">
@@ -173,7 +178,7 @@ function SellCard({ copies, items, onClick }: { copies: number; items: number; o
       type="button"
       onClick={onClick}
       aria-label={`Para vender: ${items} ítems, ${copies} copias. Abrir la página.`}
-      className="rounded-2xl border border-line bg-panel px-4 py-4 text-left hover:border-gold"
+      className="h-full w-full rounded-2xl border border-line bg-panel px-4 py-4 text-left hover:border-gold"
     >
       <p className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">Para vender</p>
       <p className="mt-2 text-4xl font-medium text-bone">{copies}</p>
@@ -201,7 +206,7 @@ function HighlightList({
 }) {
   return (
     <section>
-      <div className="mb-2 flex items-baseline justify-between gap-3">
+      <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-lg font-medium text-bone">{title}</h2>
         {onSeeAll && (
           <button type="button" onClick={onSeeAll} className="text-sm text-gold">

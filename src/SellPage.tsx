@@ -43,9 +43,9 @@ export function SellPage({
       <p className="text-sm text-mute">
         {pricesLoading ? "Consultando precios…" : `Si vendes los planos que tienes: ${total} pl.`} El set es el precio de todas las piezas juntas en el market.
       </p>
-      <ul className="flex flex-col gap-3">
+      <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {rows.map((row) => (
-          <li key={row.id} className="rounded-2xl border border-line bg-panel px-4 py-3">
+          <li key={row.id} className="flex h-full flex-col rounded-2xl border border-line bg-panel px-4 py-3">
             <button type="button" onClick={() => onOpen(row.id)} className="flex w-full items-center gap-3 text-left">
               {row.image && <img src={row.image} alt="" className="h-16 w-16 shrink-0 rounded-xl bg-ink object-contain" />}
               <span className="min-w-0">
@@ -53,7 +53,7 @@ export function SellPage({
                 <span className="block truncate text-lg text-bone">{row.name}</span>
               </span>
             </button>
-            <ul className="mt-3 flex flex-col gap-2">
+            <ul className="mt-3 flex flex-1 flex-col gap-2">
               {row.parts.map((part) => {
                 const quote = part.slug ? prices[part.slug] : null;
                 const subtotal = lineTotal(part.qty, quote);
@@ -78,7 +78,7 @@ export function SellPage({
                 );
               })}
               {row.setSlug && (
-                <li className="flex items-baseline justify-between gap-3 border-t border-line pt-2 text-sm">
+                <li className="mt-auto flex items-baseline justify-between gap-3 border-t border-line pt-2 text-sm">
                   <span className="text-bone">Set completo</span>
                   <SetPrice quote={prices[row.setSlug]} pending={pricesLoading} />
                 </li>

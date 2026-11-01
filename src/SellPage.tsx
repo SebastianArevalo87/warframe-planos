@@ -1,5 +1,8 @@
+import { useMemo, useState } from "react";
 import type { PriceQuote } from "./lib/market.ts";
 import type { SellRow } from "./lib/catalogRemote.ts";
+import type { KindFilter } from "./types.ts";
+import { FilterBar } from "./FilterBar.tsx";
 
 const KIND_LABEL = {
   warframe: "Warframe",
@@ -23,6 +26,10 @@ export function SellPage({
   error: string;
   onOpen: (id: string) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [kind, setKind] = useState<KindFilter>("all");
+  const visible = useMemo(() => filterRows(rows, query, kind), [rows, query, kind]);
+
   if (loading) return <p className="text-mute">Abriendo lo que puedes vender…</p>;
   if (error) return <p className="text-clay">{error}</p>;
   if (rows.length === 0) {
@@ -33,18 +40,30 @@ export function SellPage({
     );
   }
 
-  const total = rows.reduce(
+  const total = visible.reduce(
     (sum, row) => sum + row.parts.reduce((partSum, part) => partSum + lineTotal(part.qty, part.slug ? prices[part.slug] : null), 0),
     0,
   );
 
   return (
     <div className="flex flex-col gap-4">
+      <FilterBar
+        query={query}
+        onQuery={setQuery}
+        queryLabel="Buscar entre lo que puedes vender"
+        placeholder="Busca un ítem o un plano…"
+        kind={kind}
+        onKind={setKind}
+      />
       <p className="text-sm text-mute">
-        {pricesLoading ? "Consultando precios…" : `Si vendes los planos que tienes: ${total} pl.`} El set es el precio de todas las piezas juntas en el market.
+        {pricesLoading
+          ? "Consultando precios…"
+          : visible.length === 0
+            ? "Nada coincide con esa búsqueda."
+            : `Si vendes los planos que tienes: ${total} pl. El set es el precio de todas las piezas juntas en el market.`}
       </p>
       <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {rows.map((row) => (
+        {visible.map((row) => (
           <li key={row.id} className="flex h-full flex-col rounded-2xl border border-line bg-panel px-4 py-3">
             <button type="button" onClick={() => onOpen(row.id)} className="flex w-full items-center gap-3 text-left">
               {row.image && <img src={row.image} alt="" className="h-16 w-16 shrink-0 rounded-xl bg-ink object-contain" />}
@@ -89,6 +108,16 @@ export function SellPage({
       </ul>
     </div>
   );
+}
+
+function filterRows(rows: SellRow[], query: string, kind: KindFilter) {
+  const text = query.trim().toLowerCase();
+  return rows.filter((row) => {
+    if (kind === "weapon" && row.kind === "warframe") return false;
+    if (kind !== "all" && kind !== "weapon" && row.kind !== kind) return false;
+    if (!text) return true;
+    return row.name.toLowerCase().includes(text) || row.parts.some((part) => part.title.toLowerCase().includes(text));
+  });
 }
 
 function lineTotal(qty: number, quote: PriceQuote | null | undefined) {

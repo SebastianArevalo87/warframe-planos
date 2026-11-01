@@ -10,26 +10,9 @@ import { fetchPrices, type PriceQuote } from "./lib/market.ts";
 import { refreshCatalog } from "./lib/refreshCatalog.ts";
 import { Dashboard } from "./Dashboard.tsx";
 import { SellPage } from "./SellPage.tsx";
+import { FilterBar } from "./FilterBar.tsx";
 import { ItemCard, ItemTile } from "./ItemCard.tsx";
 import { Gate, LoginScreen } from "./Login.tsx";
-
-const KIND_FILTERS: Array<{ id: KindFilter; label: string }> = [
-  { id: "all", label: "Todo" },
-  { id: "warframe", label: "Warframes" },
-  { id: "weapon", label: "Armas" },
-  { id: "primary", label: "Primarias" },
-  { id: "secondary", label: "Secundarias" },
-  { id: "melee", label: "Melee" },
-];
-
-const STATUS_FILTERS: Array<{ id: StatusFilter; label: string }> = [
-  { id: "missing", label: "Faltan" },
-  { id: "ready", label: "Listos para fundir" },
-  { id: "built", label: "Construidos" },
-  { id: "almost", label: "Casi" },
-  { id: "owned", label: "Con planos" },
-  { id: "all", label: "Todos" },
-];
 
 const KINDS: KindFilter[] = ["all", "weapon", "warframe", "primary", "secondary", "melee"];
 const STATUSES: StatusFilter[] = ["missing", "ready", "built", "almost", "owned", "all"];
@@ -632,47 +615,27 @@ export function App() {
         />
       ) : (
         <div>
-        <label className="block">
-          <span className="sr-only">Buscar un plano</span>
-          <input
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              if (openId) hideItem();
-            }}
-            placeholder="Busca Braton, neurópticas, cañón…"
-            className="w-full rounded-2xl border border-line bg-panel px-4 py-3 text-base text-bone outline-none placeholder:text-mute/70 focus:border-gold"
-          />
-        </label>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          {STATUS_FILTERS.map((filter) => (
-            <FilterChip
-              key={filter.id}
-              active={statusFilter === filter.id}
-              label={filter.label}
-              onClick={() => {
-                setStatusFilter(filter.id);
-                rememberFilters(kindFilter, filter.id);
-                if (openId) hideItem();
-              }}
-            />
-          ))}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {KIND_FILTERS.map((filter) => (
-            <FilterChip
-              key={filter.id}
-              active={kindFilter === filter.id}
-              label={filter.label}
-              onClick={() => {
-                setKindFilter(filter.id);
-                rememberFilters(filter.id, statusFilter);
-                if (openId) hideItem();
-              }}
-            />
-          ))}
-        </div>
+        <FilterBar
+          query={query}
+          onQuery={(value) => {
+            setQuery(value);
+            if (openId) hideItem();
+          }}
+          queryLabel="Buscar un plano"
+          placeholder="Busca Braton, neurópticas, cañón…"
+          kind={kindFilter}
+          onKind={(next) => {
+            setKindFilter(next);
+            rememberFilters(next, statusFilter);
+            if (openId) hideItem();
+          }}
+          status={statusFilter}
+          onStatus={(next) => {
+            setStatusFilter(next);
+            rememberFilters(kindFilter, next);
+            if (openId) hideItem();
+          }}
+        />
 
         {loadError && <p className="mt-3 text-clay">{loadError}</p>}
         {!listingRequested(kindFilter, debouncedQuery, statusFilter) && (
@@ -718,7 +681,7 @@ export function App() {
             role="dialog"
             aria-modal="true"
             aria-label={openItem?.name ?? "Detalle del plano"}
-            className="max-h-[min(92dvh,44rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-line bg-ink p-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+            className="max-h-[min(92dvh,44rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-line bg-ink p-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-2 flex justify-end">
@@ -765,18 +728,3 @@ function PageTab({ active, label, onClick }: { active: boolean; label: string; o
   );
 }
 
-function FilterChip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        active
-          ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink"
-          : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"
-      }
-    >
-      {label}
-    </button>
-  );
-}

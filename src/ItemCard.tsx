@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ItemSummary } from "./lib/catalogRemote.ts";
 import type { CatalogItem, CatalogPart } from "./types.ts";
-import { fetchPrice, type PriceQuote } from "./lib/market.ts";
+import { fetchPrice, fetchPrices, marketItemUrl, type PriceQuote } from "./lib/market.ts";
 
 const KIND_LABEL = {
   warframe: "Warframe",
@@ -42,6 +42,32 @@ export function ItemCard({
     ? item.parts.reduce((sum, part) => (sellable(part) ? sum + (qty[part.id] ?? 0) : sum), 0)
     : 0;
   const itemCopies = qty[item.id] ?? 0;
+  const missingSlugs = useMemo(() => {
+    if (built || item.parts.length === 0) return [];
+    const slugs = item.parts.flatMap((part) => ((qty[part.id] ?? 0) === 0 && part.slug ? [part.slug] : []));
+    if (slugs.length === 0) return [];
+    return item.setSlug ? [...new Set([...slugs, item.setSlug])] : [...new Set(slugs)];
+  }, [built, item, qty]);
+  const [buyPrices, setBuyPrices] = useState<Record<string, PriceQuote | null>>({});
+  const [buyLoading, setBuyLoading] = useState(false);
+  const missingKey = missingSlugs.join("|");
+
+  useEffect(() => {
+    const slugs = missingKey ? missingKey.split("|") : [];
+    if (slugs.length === 0) return;
+    let cancelled = false;
+    setBuyLoading(true);
+    void fetchPrices(slugs)
+      .then((next) => {
+        if (!cancelled) setBuyPrices(next);
+      })
+      .finally(() => {
+        if (!cancelled) setBuyLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [missingKey]);
 
   return (
     <article className="rounded-2xl border border-line bg-panel/90 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.22)]">
@@ -113,10 +139,23 @@ export function ItemCard({
               part={part}
               amount={qty[part.id] ?? 0}
               built={built}
+              quote={part.slug ? buyPrices[part.slug] : null}
+              pricePending={buyLoading}
               onQty={(next) => onPartQty(part.id, next)}
             />
           ))}
         </ul>
+      )}
+      {!built && item.setSlug && missingSlugs.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/30 bg-ink/40 px-3 py-2">
+          <p className="text-bone">Set completo</p>
+          <BuyLink
+            label="el set completo"
+            slug={item.setSlug}
+            quote={buyPrices[item.setSlug]}
+            pending={buyLoading}
+          />
+        </div>
       )}
     </article>
   );
@@ -262,19 +301,51 @@ function PriceButton({ slug }: { slug: string }) {
   );
 }
 
+function BuyLink({
+  label,
+  slug,
+  quote,
+  pending,
+}: {
+  label: string;
+  slug: string;
+  quote: PriceQuote | null | undefined;
+  pending: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-gold">{pending && !quote ? "…" : quote ? `${quote.platinum} pl` : "sin precio"}</span>
+      <a
+        href={marketItemUrl(slug)}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={`Comprar ${label} en Warframe Market`}
+        className="rounded-full border border-gold px-3 py-1.5 text-sm text-gold hover:bg-gold hover:text-ink"
+      >
+        Comprar
+      </a>
+    </div>
+  );
+}
+
 function PartRow({
   part,
   amount,
   built,
+  quote,
+  pricePending,
   onQty,
 }: {
   part: CatalogPart;
   amount: number;
   built: boolean;
+  quote: PriceQuote | null | undefined;
+  pricePending: boolean;
   onQty: (next: number) => void;
 }) {
   const vendible = sellable(part);
   const forSale = vendible && built && amount > 0;
+  const needsBuy = !built && amount === 0 && part.slug !== null;
   return (
     <li className="rounded-xl border border-line/80 bg-ink/40 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -289,8 +360,11 @@ function PartRow({
             )}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {part.slug && <PriceButton slug={part.slug} />}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {needsBuy && part.slug && (
+            <BuyLink label={part.title} slug={part.slug} quote={quote} pending={pricePending} />
+          )}
+          {!needsBuy && part.slug && <PriceButton slug={part.slug} />}
           {vendible ? (
             <Quantity value={amount} label={part.title} onChange={onQty} />
           ) : amount > 0 ? (

@@ -440,6 +440,7 @@ as $$
     'image', i.image,
     'tradable', i.tradable or i.slug is not null,
     'slug', i.slug,
+    'setSlug', i.set_slug,
     'parts', coalesce((
       select jsonb_agg(
         jsonb_build_object(

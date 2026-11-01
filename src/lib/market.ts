@@ -1,5 +1,9 @@
 import { supabase } from "./supabase.ts";
 
+export function marketItemUrl(slug: string) {
+  return `https://warframe.market/items/${slug}`;
+}
+
 export type PriceQuote = {
   platinum: number;
   seller: string;
@@ -29,7 +33,7 @@ function quoteFromOrders(slug: string, sells: Order[]): PriceQuote | null {
     platinum: pick.platinum,
     seller: pick.user?.ingameName ?? "un vendedor",
     live: pick === live,
-    url: `https://warframe.market/items/${slug}`,
+    url: marketItemUrl(slug),
   };
 }
 
@@ -49,7 +53,7 @@ function asQuote(slug: string, value: unknown): PriceQuote | null {
     platinum: quote.platinum,
     seller: typeof quote.seller === "string" ? quote.seller : "un vendedor",
     live: quote.live === true,
-    url: typeof quote.url === "string" ? quote.url : `https://warframe.market/items/${slug}`,
+    url: typeof quote.url === "string" ? quote.url : marketItemUrl(slug),
   };
 }
 

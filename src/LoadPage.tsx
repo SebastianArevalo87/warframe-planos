@@ -98,13 +98,17 @@ export function LoadPage({
   onToggle,
   onOpen,
   mastered,
+  leveled,
   onToggleMastered,
+  onToggleLeveled,
 }: {
   qty: Record<string, number>;
   onToggle: (partId: string, next: number) => void;
   onOpen: (itemId: string) => void;
   mastered: string[];
+  leveled: string[];
   onToggleMastered: (itemId: string) => void;
+  onToggleLeveled: (itemId: string) => void;
 }) {
   const [rows, setRows] = useState<LoadRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -207,7 +211,7 @@ export function LoadPage({
         </button>
       </div>
       {mode === "mastered" ? (
-        <MasteryPage mastered={mastered} onToggle={onToggleMastered} />
+        <MasteryPage mastered={mastered} leveled={leveled} onToggle={onToggleMastered} onToggleLeveled={onToggleLeveled} />
       ) : (
         <>
       {error && <p className="text-clay">{error}</p>}

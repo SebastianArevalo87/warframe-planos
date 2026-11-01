@@ -3,7 +3,7 @@ import type { Collection } from "../types.ts";
 export const MAX_QTY = 99;
 
 export function emptyCollection(): Collection {
-  return { parts: [], built: [], items: [], qty: {}, crafted: [], mastered: [] };
+  return { parts: [], built: [], items: [], qty: {}, crafted: [], mastered: [], leveled: [] };
 }
 
 export function craftKey(itemId: string, partId: string) {
@@ -37,13 +37,16 @@ export function normalizeCollection(value: unknown): Collection {
   const kept: Record<string, number> = {};
   for (const id of parts) kept[id] = qty[id];
   for (const id of items) kept[id] = qty[id];
+  const mastered = strings(raw.mastered);
+  const done = new Set(mastered);
   return {
     parts,
     built: strings(raw.built),
     items,
     qty: kept,
     crafted: craftedKeys(raw.crafted),
-    mastered: strings(raw.mastered),
+    mastered,
+    leveled: strings(raw.leveled).filter((id) => !done.has(id)),
   };
 }
 

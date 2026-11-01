@@ -13,6 +13,10 @@ type Names = {
 const LocaleContext = createContext<Names | null>(null);
 const cache = new Map<LocaleId, Record<string, string>>();
 
+function visibleName(value: string) {
+  return value.replace(/^<[^>\n]+>\s*/, "");
+}
+
 function swap(title: string, english: string, shown: string) {
   if (!english || shown === english || !title.includes(english)) return title;
   return title.split(english).join(shown);
@@ -60,8 +64,8 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   const names = useMemo<Names>(() => {
     const item = (id: string, english: string) => {
-      if (locale !== "en" && dict[id]) return dict[id];
-      return locale === "es" ? gameName(english) : english;
+      if (locale !== "en" && dict[id]) return visibleName(dict[id]);
+      return visibleName(locale === "es" ? gameName(english) : english);
     };
     return {
       locale,

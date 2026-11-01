@@ -243,6 +243,8 @@ export function GearCard({
   vaulted = false,
   pressed,
   onClick,
+  leveled,
+  onToggleLeveled,
 }: {
   name: string;
   image: string | null;
@@ -252,15 +254,11 @@ export function GearCard({
   vaulted?: boolean;
   pressed?: boolean;
   onClick: () => void;
+  leveled?: boolean;
+  onToggleLeveled?: () => void;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={pressed}
-      aria-label={label ? `${name}. ${label}` : name}
-      className={`relative aspect-square w-full overflow-hidden rounded-xl border bg-ink text-left ${TILE_FRAME[tone]}`}
-    >
+  const body = (
+    <>
       {image && (
         <img
           src={image}
@@ -271,7 +269,7 @@ export function GearCard({
         />
       )}
       {label && (
-        <span className={`absolute top-1.5 left-1.5 max-w-[calc(100%-0.75rem)] truncate rounded-full px-1.5 py-0.5 text-[10px] font-medium ${TILE_BADGE[tone]}`}>
+        <span className={`absolute top-1.5 left-1.5 max-w-[calc(100%-2.25rem)] truncate rounded-full px-1.5 py-0.5 text-[10px] font-medium ${TILE_BADGE[tone]}`}>
           {label}
         </span>
       )}
@@ -279,7 +277,53 @@ export function GearCard({
         <span className="block truncate text-xs font-medium text-bone">{name}</span>
         {vaulted && <span className="block truncate text-[10px] text-clay">En la bóveda</span>}
       </span>
-    </button>
+    </>
+  );
+  const frame = `relative aspect-square w-full overflow-hidden rounded-xl border bg-ink text-left ${TILE_FRAME[tone]}`;
+  if (!onToggleLeveled) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={pressed}
+        aria-label={label ? `${name}. ${label}` : name}
+        className={frame}
+      >
+        {body}
+      </button>
+    );
+  }
+  return (
+    <div className={frame}>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={pressed}
+        aria-label={label ? `${name}. ${label}` : `${name}. Sin rango 30`}
+        className="absolute inset-0 text-left"
+      >
+        {body}
+      </button>
+      <button
+        type="button"
+        onClick={onToggleLeveled}
+        aria-pressed={leveled}
+        aria-label={leveled ? `${name}. Quitar leveado` : `${name}. Marcar leveado, sin rango 30`}
+        title={leveled ? "Quitar leveado" : "Leveado, sin rango 30"}
+        className="absolute top-1 right-1 z-10 grid h-7 w-7 place-items-center rounded-full"
+      >
+        <span
+          className={
+            leveled
+              ? "grid h-5 w-5 place-items-center rounded-full bg-gold text-[10px] font-medium text-ink"
+              : "h-5 w-5 rounded-full border border-line bg-ink/80"
+          }
+          aria-hidden="true"
+        >
+          {leveled ? "L" : ""}
+        </span>
+      </button>
+    </div>
   );
 }
 

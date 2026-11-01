@@ -88,6 +88,7 @@ export type Collection = {
   qty: Record<string, number>;
   crafted: string[];
   mastered: string[];
+  leveled: string[];
 };
 
 export type Draft = {

@@ -420,7 +420,18 @@ export function App() {
     const current = collectionRef.current;
     const marking = !current.mastered.includes(id);
     const mastered = marking ? [...current.mastered, id] : current.mastered.filter((itemId) => itemId !== id);
-    const updated = { ...current, mastered };
+    const leveled = marking ? current.leveled.filter((itemId) => itemId !== id) : current.leveled;
+    const updated = { ...current, mastered, leveled };
+    collectionRef.current = updated;
+    writeAccount(updated);
+  }
+
+  function toggleLeveled(id: string) {
+    const current = collectionRef.current;
+    const marking = !current.leveled.includes(id);
+    const leveled = marking ? [...current.leveled, id] : current.leveled.filter((itemId) => itemId !== id);
+    const mastered = marking ? current.mastered.filter((itemId) => itemId !== id) : current.mastered;
+    const updated = { ...current, mastered, leveled };
     collectionRef.current = updated;
     writeAccount(updated);
   }
@@ -652,7 +663,9 @@ export function App() {
           onToggle={setPartQty}
           onOpen={showItem}
           mastered={collection.mastered}
+          leveled={collection.leveled}
           onToggleMastered={toggleMastered}
+          onToggleLeveled={toggleLeveled}
         />
       ) : page === "sell" ? (
         <SellPage

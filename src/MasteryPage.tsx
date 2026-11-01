@@ -1,0 +1,159 @@
+import { useEffect, useMemo, useState } from "react";
+import { fetchItemIndex, type MasteryRow } from "./lib/catalogRemote.ts";
+import type { ItemKind } from "./types.ts";
+
+type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "companion" | "robotic" | "archgun" | "archmelee" | "amp";
+
+const GROUPS: Array<{ id: GroupId; label: string }> = [
+  { id: "warframe", label: "Warframe" },
+  { id: "primary", label: "Primaria" },
+  { id: "secondary", label: "Secundaria" },
+  { id: "melee", label: "Cuerpo a cuerpo" },
+  { id: "archwing", label: "Archwing" },
+  { id: "companion", label: "Compañero" },
+  { id: "robotic", label: "Robótico" },
+  { id: "archgun", label: "Archcañón" },
+  { id: "archmelee", label: "Archmelee" },
+  { id: "amp", label: "Amps" },
+];
+
+function inGroup(kind: ItemKind, group: GroupId) {
+  if (group === "archwing") return kind === "archwing" || kind === "necramech";
+  return kind === group;
+}
+
+export function MasteryPage({
+  mastered,
+  onToggle,
+}: {
+  mastered: string[];
+  onToggle: (itemId: string) => void;
+}) {
+  const [rows, setRows] = useState<MasteryRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [group, setGroup] = useState<GroupId>("warframe");
+  const [query, setQuery] = useState("");
+  const done = useMemo(() => new Set(mastered), [mastered]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void fetchItemIndex()
+      .then((next) => {
+        if (!cancelled) setRows(next);
+      })
+      .catch(() => {
+        if (!cancelled) setError("No pude abrir el equipo.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const groups = useMemo(
+    () =>
+      GROUPS.map((entry) => {
+        const matching = rows.filter((row) => inGroup(row.kind, entry.id));
+        const owned = matching.filter((row) => done.has(row.id)).length;
+        return { ...entry, owned, total: matching.length };
+      }),
+    [done, rows],
+  );
+
+  const needle = query.trim().toLowerCase();
+  const visible = rows
+    .filter((row) => inGroup(row.kind, group) && (needle === "" || row.name.toLowerCase().includes(needle)))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+  const ownedVisible = visible.filter((row) => done.has(row.id)).length;
+
+  return (
+    <div>
+      <p className="text-sm text-mute">Rango 30. El orden es el del perfil, por nombre.</p>
+      {error && <p className="mt-3 text-clay">{error}</p>}
+      {loading && <p className="mt-4 text-mute">Abriendo el equipo…</p>}
+      {!loading && !error && (
+        <>
+          <div className="z-10 -mx-4 mt-3 bg-ink/95 px-4 py-3 backdrop-blur-md lg:sticky lg:top-0 lg:-mx-8 lg:px-8">
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Categoría del perfil">
+              {groups.map((entry) => {
+                const selected = entry.id === group;
+                const complete = entry.total > 0 && entry.owned === entry.total;
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    onClick={() => setGroup(entry.id)}
+                    className={
+                      selected
+                        ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink"
+                        : complete
+                          ? "rounded-full border border-moss/40 px-3 py-1.5 text-sm text-moss"
+                          : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"
+                    }
+                  >
+                    {entry.label}
+                    <span className="ml-1 tabular-nums opacity-70">
+                      {entry.owned}/{entry.total}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <label className="min-w-0 flex-1">
+                <span className="sr-only">Busca en esta lista</span>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Busca en esta lista"
+                  className="w-full rounded-full border border-line bg-panel px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
+                />
+              </label>
+              <p className="shrink-0 text-sm text-bone tabular-nums">
+                Completado {ownedVisible}/{visible.length}
+              </p>
+            </div>
+          </div>
+          {visible.length === 0 && <p className="mt-4 text-mute">Ningún equipo coincide.</p>}
+          <ul className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-9">
+            {visible.map((row) => {
+              const owned = done.has(row.id);
+              return (
+                <li key={row.id}>
+                  <button
+                    type="button"
+                    aria-pressed={owned}
+                    onClick={() => onToggle(row.id)}
+                    className={`flex h-full w-full flex-col overflow-hidden rounded-lg border bg-ink text-left ${owned ? "border-moss/80" : "border-line"}`}
+                  >
+                    <span className="relative block aspect-square">
+                      {row.image && (
+                        <img
+                          src={row.image}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          className={`absolute inset-0 h-full w-full object-contain p-1 ${owned ? "" : "opacity-40"}`}
+                        />
+                      )}
+                    </span>
+                    <span className="bg-bone px-1.5 py-1 text-ink">
+                      <span className="block truncate text-[11px] leading-tight font-medium">{row.name}</span>
+                      {owned && <span className="block truncate text-[10px] leading-tight text-moss">Rango máximo</span>}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}

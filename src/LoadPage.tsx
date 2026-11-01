@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchLoadIndex, type LoadRow } from "./lib/catalogRemote.ts";
+import { MasteryPage } from "./MasteryPage.tsx";
 import { KIND_LABEL } from "./types.ts";
 
 type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "archgun" | "archmelee" | "companion" | "robotic" | "amp" | "varios";
@@ -91,10 +92,14 @@ export function LoadPage({
   qty,
   onToggle,
   onOpen,
+  mastered,
+  onToggleMastered,
 }: {
   qty: Record<string, number>;
   onToggle: (partId: string, next: number) => void;
   onOpen: (itemId: string) => void;
+  mastered: string[];
+  onToggleMastered: (itemId: string) => void;
 }) {
   const [rows, setRows] = useState<LoadRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,6 +107,7 @@ export function LoadPage({
   const [group, setGroup] = useState<GroupId>("warframe");
   const [type, setType] = useState("Plano");
   const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<"parts" | "mastered">("parts");
 
   useEffect(() => {
     let cancelled = false;
@@ -164,6 +170,30 @@ export function LoadPage({
 
   return (
     <div>
+      <div className="mb-4 flex gap-2" role="tablist" aria-label="Qué vas a cargar">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "parts"}
+          onClick={() => setMode("parts")}
+          className={mode === "parts" ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink" : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"}
+        >
+          Planos
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "mastered"}
+          onClick={() => setMode("mastered")}
+          className={mode === "mastered" ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink" : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"}
+        >
+          Dominados
+        </button>
+      </div>
+      {mode === "mastered" ? (
+        <MasteryPage mastered={mastered} onToggle={onToggleMastered} />
+      ) : (
+        <>
       <p className="text-sm text-mute">Marca lo que ya tienes. Las pestañas siguen el orden de la fundición.</p>
       {error && <p className="mt-3 text-clay">{error}</p>}
       {loading && <p className="mt-4 text-mute">Abriendo las piezas…</p>}
@@ -280,6 +310,8 @@ export function LoadPage({
               </section>
             ))}
           </div>
+        </>
+      )}
         </>
       )}
     </div>

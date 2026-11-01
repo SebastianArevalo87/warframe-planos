@@ -413,6 +413,16 @@ export function App() {
     patchOpenRow({ ownedItem: (updated.qty[id] ?? 0) > 0 });
   }
 
+  function toggleMastered(id: string) {
+    const current = collectionRef.current;
+    const mastered = current.mastered.includes(id)
+      ? current.mastered.filter((itemId) => itemId !== id)
+      : [...current.mastered, id];
+    const updated = { ...current, mastered };
+    collectionRef.current = updated;
+    writeAccount(updated);
+  }
+
   function toggleBuilt(id: string) {
     const current = collectionRef.current;
     const builtIds = current.built.includes(id)
@@ -643,7 +653,13 @@ export function App() {
           )}
         </div>
       ) : page === "load" ? (
-        <LoadPage qty={collection.qty} onToggle={setPartQty} onOpen={showItem} />
+        <LoadPage
+          qty={collection.qty}
+          onToggle={setPartQty}
+          onOpen={showItem}
+          mastered={collection.mastered}
+          onToggleMastered={toggleMastered}
+        />
       ) : page === "sell" ? (
         <SellPage
           rows={sellRows}

@@ -266,6 +266,46 @@ export async function fetchLoadIndex(): Promise<LoadRow[]> {
   return rows;
 }
 
+export type MasteryRow = {
+  id: string;
+  name: string;
+  image: string | null;
+  kind: ItemKind;
+};
+
+export async function fetchItemIndex(): Promise<MasteryRow[]> {
+  if (!supabase) throw new Error("supabase");
+  const rows: MasteryRow[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("catalog_items")
+      .select("id, name, image, kind")
+      .order("name")
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as unknown[];
+    for (const entry of batch) {
+      const row = asMasteryRow(entry);
+      if (row) rows.push(row);
+    }
+    if (batch.length < pageSize) break;
+  }
+  return rows;
+}
+
+function asMasteryRow(value: unknown): MasteryRow | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as { id?: unknown; name?: unknown; image?: unknown; kind?: unknown };
+  if (typeof row.id !== "string" || typeof row.name !== "string" || !row.name || !isItemKind(row.kind)) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    image: typeof row.image === "string" && row.image ? row.image : null,
+    kind: row.kind,
+  };
+}
+
 function asLoadRow(value: unknown): LoadRow | null {
   if (!value || typeof value !== "object") return null;
   const row = value as {

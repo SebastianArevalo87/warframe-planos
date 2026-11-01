@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchLoadIndex, type LoadRow } from "./lib/catalogRemote.ts";
 import { useNames } from "./Locale.tsx";
-import { MasteryPage } from "./MasteryPage.tsx";
+import { MasteryPage, masteryGroup } from "./MasteryPage.tsx";
 import { sortLocale } from "./lib/locale.ts";
 import { useShowFounders } from "./lib/founders.ts";
 import { KIND_LABEL } from "./types.ts";
@@ -116,7 +116,8 @@ export function LoadPage({
   const [group, setGroup] = useState<GroupId>("warframe");
   const [type, setType] = useState("Plano");
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<"parts" | "mastered">(window.location.hash === "#dominados" ? "mastered" : "parts");
+  const opened = masteryGroup(window.location.hash);
+  const [mode, setMode] = useState<"parts" | "mastered">(opened ? "mastered" : "parts");
   const names = useNames();
   const foundersVisible = useShowFounders();
   const ordering = sortLocale(names.locale);
@@ -211,7 +212,13 @@ export function LoadPage({
         </button>
       </div>
       {mode === "mastered" ? (
-        <MasteryPage mastered={mastered} leveled={leveled} onToggle={onToggleMastered} onToggleLeveled={onToggleLeveled} />
+        <MasteryPage
+          mastered={mastered}
+          leveled={leveled}
+          initialGroup={opened ?? "warframe"}
+          onToggle={onToggleMastered}
+          onToggleLeveled={onToggleLeveled}
+        />
       ) : (
         <>
       {error && <p className="text-clay">{error}</p>}

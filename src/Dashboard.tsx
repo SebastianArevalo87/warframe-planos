@@ -6,7 +6,8 @@ import { fetchCodaShop, codaElement, type CodaShop } from "./lib/coda.ts";
 import { fetchWorld, formatTimeLeft, type WorldNow } from "./lib/worldstate.ts";
 import { useNames } from "./Locale.tsx";
 import { useShowFounders } from "./lib/founders.ts";
-import { KIND_LABEL, type Collection, type KindFilter, type StatusFilter } from "./types.ts";
+import { KIND_LABEL, type Collection, type ItemKind, type KindFilter, type StatusFilter } from "./types.ts";
+import type { MasteryGroupId } from "./MasteryPage.tsx";
 
 export function Dashboard({
   stats,
@@ -23,7 +24,7 @@ export function Dashboard({
   onOpen: (id: string) => void;
   onSearch: (kind: KindFilter, status: StatusFilter) => void;
   onSell: () => void;
-  onMastered: () => void;
+  onMastered: (group?: MasteryGroupId) => void;
 }) {
   const foundersVisible = useShowFounders();
   const [world, setWorld] = useState<WorldNow | null>(null);
@@ -82,10 +83,37 @@ export function Dashboard({
     return byName;
   }, [collection.mastered, gear]);
 
+  const masteredCount = useMemo(() => {
+    const done = new Set(collection.mastered);
+    const tally = (match: (kind: ItemKind) => boolean) => {
+      let owned = 0;
+      let total = 0;
+      for (const row of gear ?? []) {
+        if (!match(row.kind)) continue;
+        total += 1;
+        if (done.has(row.id)) owned += 1;
+      }
+      return { owned, total };
+    };
+    return {
+      frames: tally((kind) => kind === "warframe"),
+      weapons: tally((kind) => kind === "primary" || kind === "secondary" || kind === "melee"),
+      primary: tally((kind) => kind === "primary"),
+      secondary: tally((kind) => kind === "secondary"),
+      melee: tally((kind) => kind === "melee"),
+      archwing: tally((kind) => kind === "archwing" || kind === "necramech"),
+      archgun: tally((kind) => kind === "archgun"),
+      archmelee: tally((kind) => kind === "archmelee"),
+      companion: tally((kind) => kind === "companion"),
+      robotic: tally((kind) => kind === "robotic"),
+      amp: tally((kind) => kind === "amp"),
+    };
+  }, [collection.mastered, gear]);
+
   if (!stats) return <p className="text-mute">Abriendo el farmeo…</p>;
 
-  const framePercent = percent(stats.frames, stats.frameTotal);
-  const weaponPercent = percent(stats.weapons, stats.weaponTotal);
+  const framePercent = percent(masteredCount.frames.owned, masteredCount.frames.total);
+  const weaponPercent = percent(masteredCount.weapons.owned, masteredCount.weapons.total);
 
   return (
     <div className="flex flex-col gap-8">
@@ -141,30 +169,30 @@ export function Dashboard({
         <div className="grid grid-cols-3 gap-2">
           <BigNumber
             label="Warframes"
-            value={stats.frames}
-            total={stats.frameTotal}
+            value={gear ? masteredCount.frames.owned : null}
+            total={masteredCount.frames.total}
             percent={framePercent}
-            onClick={() => onSearch("warframe", "built")}
+            onClick={() => onMastered("warframe")}
           />
           <BigNumber
             label="Armas"
-            value={stats.weapons}
-            total={stats.weaponTotal}
+            value={gear ? masteredCount.weapons.owned : null}
+            total={masteredCount.weapons.total}
             percent={weaponPercent}
-            onClick={() => onSearch("weapon", "built")}
+            onClick={() => onMastered("primary")}
           />
           <SellCard copies={stats.sellCopies} items={stats.sellItemCount} onClick={onSell} />
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <SmallMeter label="Primarias" value={stats.primary} total={stats.primaryTotal} onClick={() => onSearch("primary", "built")} />
-          <SmallMeter label="Secundarias" value={stats.secondary} total={stats.secondaryTotal} onClick={() => onSearch("secondary", "built")} />
-          <SmallMeter label="Cuerpo a cuerpo" value={stats.melee} total={stats.meleeTotal} onClick={() => onSearch("melee", "built")} />
-          <SmallMeter label="Archwing" value={stats.archwing} total={stats.archwingTotal} onClick={() => onSearch("archwing", "built")} />
-          <SmallMeter label="Archcañón" value={stats.archgun} total={stats.archgunTotal} onClick={() => onSearch("archgun", "built")} />
-          <SmallMeter label="Archmelee" value={stats.archmelee} total={stats.archmeleeTotal} onClick={() => onSearch("archmelee", "built")} />
-          <SmallMeter label="Compañero" value={stats.companion} total={stats.companionTotal} onClick={() => onSearch("companion", "built")} />
-          <SmallMeter label="Robótico" value={stats.robotic} total={stats.roboticTotal} onClick={() => onSearch("robotic", "built")} />
-          <SmallMeter label="Amps" value={stats.amp} total={stats.ampTotal} onClick={() => onSearch("amp", "built")} />
+          <SmallMeter label="Primarias" value={gear ? masteredCount.primary.owned : null} total={masteredCount.primary.total} onClick={() => onMastered("primary")} />
+          <SmallMeter label="Secundarias" value={gear ? masteredCount.secondary.owned : null} total={masteredCount.secondary.total} onClick={() => onMastered("secondary")} />
+          <SmallMeter label="Cuerpo a cuerpo" value={gear ? masteredCount.melee.owned : null} total={masteredCount.melee.total} onClick={() => onMastered("melee")} />
+          <SmallMeter label="Archwing" value={gear ? masteredCount.archwing.owned : null} total={masteredCount.archwing.total} onClick={() => onMastered("vehicle")} />
+          <SmallMeter label="Archcañón" value={gear ? masteredCount.archgun.owned : null} total={masteredCount.archgun.total} onClick={() => onMastered("archgun")} />
+          <SmallMeter label="Archmelee" value={gear ? masteredCount.archmelee.owned : null} total={masteredCount.archmelee.total} onClick={() => onMastered("archmelee")} />
+          <SmallMeter label="Compañero" value={gear ? masteredCount.companion.owned : null} total={masteredCount.companion.total} onClick={() => onMastered("companion")} />
+          <SmallMeter label="Robótico" value={gear ? masteredCount.robotic.owned : null} total={masteredCount.robotic.total} onClick={() => onMastered("robotic")} />
+          <SmallMeter label="Amps" value={gear ? masteredCount.amp.owned : null} total={masteredCount.amp.total} onClick={() => onMastered("amp")} />
         </div>
         <div className="grid grid-cols-3 gap-2">
           <CountCard label="Planos tuyos" value={stats.ownedParts} hint={`de ${stats.partTotal}`} onClick={() => onSearch("all", "owned")} />
@@ -191,7 +219,7 @@ function BigNumber({
   onClick,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   total: number;
   percent: number;
   onClick: () => void;
@@ -200,35 +228,35 @@ function BigNumber({
     <button
       type="button"
       onClick={onClick}
-      aria-label={`${label}: ${value} de ${total} construidos. Ver la búsqueda.`}
+      aria-label={value == null ? `${label}: contando dominados` : `${label}: ${value} de ${total} dominados. Abrir la lista.`}
       className="h-full w-full rounded-xl border border-line bg-panel px-3 py-2.5 text-left hover:border-gold"
     >
       <p className="truncate text-[11px] font-medium tracking-[0.14em] text-gold uppercase">{label}</p>
       <p className="mt-1 text-2xl font-medium text-bone">
-        {value}
-        <span className="text-sm text-mute">/{total}</span>
+        {value ?? "…"}
+        {value != null && <span className="text-sm text-mute">/{total}</span>}
       </p>
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-line">
         <div className="h-full rounded-full bg-gold" style={{ width: `${share}%` }} />
       </div>
-      <p className="mt-1 text-[11px] text-mute">{share}%</p>
+      <p className="mt-1 text-[11px] text-mute">{value == null ? "Dominados" : `${share}% dominados`}</p>
     </button>
   );
 }
 
-function SmallMeter({ label, value, total, onClick }: { label: string; value: number; total: number; onClick: () => void }) {
-  const share = percent(value, total);
+function SmallMeter({ label, value, total, onClick }: { label: string; value: number | null; total: number; onClick: () => void }) {
+  const share = percent(value ?? 0, total);
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={`${label}: ${value} de ${total} construidas. Ver la búsqueda.`}
+      aria-label={value == null ? `${label}: contando dominados` : `${label}: ${value} de ${total} dominados. Abrir la lista.`}
       className="rounded-xl border border-line bg-panel/80 px-2.5 py-2 text-left hover:border-gold"
     >
       <p className="truncate text-[11px] text-mute">{label}</p>
       <p className="mt-0.5 text-base text-bone">
-        {value}
-        <span className="text-sm text-mute">/{total}</span>
+        {value ?? "…"}
+        {value != null && <span className="text-sm text-mute">/{total}</span>}
       </p>
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-line">
         <div className="h-full rounded-full bg-moss" style={{ width: `${share}%` }} />

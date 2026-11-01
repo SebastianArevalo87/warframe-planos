@@ -648,8 +648,8 @@ export function App() {
             onOpen={showItem}
             onSearch={openSearch}
             onSell={() => openPage("sell")}
-            onMastered={() => {
-              window.location.hash = "dominados";
+            onMastered={(group) => {
+              window.location.hash = group ? `dominados-${group}` : "dominados";
               openPage("load");
             }}
           />

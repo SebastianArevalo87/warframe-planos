@@ -6,9 +6,9 @@ import { sortLocale } from "./lib/locale.ts";
 import { useShowFounders } from "./lib/founders.ts";
 import type { ItemKind } from "./types.ts";
 
-type GroupId = "warframe" | "primary" | "secondary" | "melee" | "robotic" | "companion" | "vehicle" | "archgun" | "archmelee" | "amp";
+export type MasteryGroupId = "warframe" | "primary" | "secondary" | "melee" | "robotic" | "companion" | "vehicle" | "archgun" | "archmelee" | "amp";
 
-const GROUPS: Array<{ id: GroupId; label: string }> = [
+const GROUPS: Array<{ id: MasteryGroupId; label: string }> = [
   { id: "warframe", label: "Warframe" },
   { id: "primary", label: "Primaria" },
   { id: "secondary", label: "Secundaria" },
@@ -21,26 +21,35 @@ const GROUPS: Array<{ id: GroupId; label: string }> = [
   { id: "amp", label: "Amps" },
 ];
 
-function inGroup(kind: ItemKind, group: GroupId) {
+function inGroup(kind: ItemKind, group: MasteryGroupId) {
   if (group === "vehicle") return kind === "archwing" || kind === "necramech";
   return kind === group;
+}
+
+export function masteryGroup(hash: string): MasteryGroupId | null {
+  if (hash === "#dominados") return "warframe";
+  if (!hash.startsWith("#dominados-")) return null;
+  const id = hash.slice("#dominados-".length);
+  return GROUPS.some((entry) => entry.id === id) ? (id as MasteryGroupId) : null;
 }
 
 export function MasteryPage({
   mastered,
   leveled,
+  initialGroup = "warframe",
   onToggle,
   onToggleLeveled,
 }: {
   mastered: string[];
   leveled: string[];
+  initialGroup?: MasteryGroupId;
   onToggle: (itemId: string) => void;
   onToggleLeveled: (itemId: string) => void;
 }) {
   const [rows, setRows] = useState<MasteryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [group, setGroup] = useState<GroupId>("warframe");
+  const [group, setGroup] = useState<MasteryGroupId>(initialGroup);
   const [query, setQuery] = useState("");
   const done = useMemo(() => new Set(mastered), [mastered]);
   const started = useMemo(() => new Set(leveled), [leveled]);

@@ -24,6 +24,10 @@ function sellable(part: { tradable: boolean; slug: string | null }) {
   return part.tradable || part.slug !== null;
 }
 
+function isFinalBlueprint(part: { short: string }) {
+  return part.short === "Plano" || part.short === "Blueprint";
+}
+
 export function ItemCard({
   item,
   visiblePartIds,
@@ -59,7 +63,11 @@ export function ItemCard({
   const missingKey = missingSlugs.join("|");
   const crafted = new Set(craftedParts);
   const remainingMaterials = sumMaterials(
-    built ? [] : item.parts.filter((part) => !crafted.has(part.id)).map((part) => part.materials ?? []),
+    built
+      ? []
+      : item.parts
+          .filter((part) => isFinalBlueprint(part) || !crafted.has(part.id))
+          .map((part) => part.materials ?? []),
   );
 
   useEffect(() => {
@@ -81,9 +89,9 @@ export function ItemCard({
 
   return (
     <article className="min-w-0 max-w-full">
-      <header className="flex flex-wrap items-start gap-3">
+      <header className="flex items-start gap-3">
         {item.image && <ItemImage src={item.image} large />}
-        <div className="min-w-0 flex-1 basis-48">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">
               {KIND_LABEL[item.kind]}
@@ -108,31 +116,31 @@ export function ItemCard({
           {item.parts.length === 0 && itemCopies > 0 && (
             <p className="text-sm text-mute">{itemCopies} {itemCopies === 1 ? "copia" : "copias"}</p>
           )}
-        </div>
-        {item.parts.length > 0 && (
-          <div className="flex shrink-0 flex-wrap gap-2">
-            {onShowRelics && item.parts.some((part) => part.relics.length > 0) && (
+          {item.parts.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {onShowRelics && item.parts.some((part) => part.relics.length > 0) && (
+                <button
+                  type="button"
+                  onClick={onShowRelics}
+                  className="rounded-full border border-line px-3 py-1.5 text-sm text-bone hover:border-gold"
+                >
+                  Reliquias
+                </button>
+              )}
               <button
                 type="button"
-                onClick={onShowRelics}
-                className="rounded-full border border-line px-3 py-2 text-sm text-bone hover:border-gold"
+                onClick={onToggleBuilt}
+                className={
+                  built
+                    ? "rounded-full border border-moss/40 px-3 py-1.5 text-sm text-moss"
+                    : "rounded-full border border-line px-3 py-1.5 text-sm text-bone hover:border-gold"
+                }
               >
-                Reliquias
+                {built ? "Quitar construido" : "Ya lo construí"}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={onToggleBuilt}
-              className={
-                built
-                  ? "rounded-full border border-moss/40 px-3 py-2 text-sm text-moss"
-                  : "rounded-full border border-line px-3 py-2 text-sm text-bone hover:border-gold"
-              }
-            >
-              {built ? "Quitar construido" : "Ya lo construí"}
-            </button>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </header>
 
       {item.parts.length === 0 && (
@@ -157,13 +165,12 @@ export function ItemCard({
           {!built && (
             <MaterialTotals
               title="Materiales para construir"
-              note="Costo de las piezas que todavía no marcaste como construidas."
+              note="Lo que falta para las piezas, y para armar el objeto."
               materials={remainingMaterials}
               onOpenItem={onOpenItem}
-              spread
             />
           )}
-          <div className="mt-6 min-w-0 lg:mt-0">
+          <div className="mt-4 min-w-0">
           <p className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">Piezas</p>
           <ul className="mt-2">
             {parts.map((part) => (
@@ -432,25 +439,23 @@ function PartRow({
   const forSale = vendible && built && amount > 0;
   const needsBuy = !built && amount === 0 && part.slug !== null;
   return (
-    <li className="min-w-0 border-t border-line/40 py-3 first:border-t-0 first:pt-0">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto sm:flex-1">
-          {part.image && <ItemImage src={part.image} compact />}
-          <div className="min-w-0">
-            <p className={amount > 0 ? "break-words text-bone" : "break-words text-mute"}>{title}</p>
-            {forSale ? (
-              <p className="text-xs text-gold">{amount} para vender</p>
-            ) : (
-              amount > 0 && <p className="text-xs text-moss">Lo tengo</p>
-            )}
-          </div>
+    <li className="min-w-0 border-t border-line/40 py-2.5 first:border-t-0 first:pt-0">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {part.image && <ItemImage src={part.image} compact />}
+        <div className="min-w-0 flex-1 basis-36">
+          <p className={amount > 0 ? "truncate text-bone" : "truncate text-mute"}>{title}</p>
+          {forSale ? (
+            <p className="text-xs text-gold">{amount} para vender</p>
+          ) : (
+            amount > 0 && <p className="text-xs text-moss">Lo tengo</p>
+          )}
         </div>
-        <div className="flex max-w-full flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
           {needsBuy && part.slug && (
             <BuyLink label={title} slug={part.slug} quote={quote} pending={pricePending} />
           )}
           {!needsBuy && part.slug && <PriceButton slug={part.slug} />}
-          {!built && part.materials.length > 0 && (
+          {!built && !isFinalBlueprint(part) && part.materials.length > 0 && (
             <button
               type="button"
               onClick={onToggleCrafted}
@@ -466,22 +471,22 @@ function PartRow({
           {vendible ? (
             <Quantity value={amount} label={title} onChange={onQty} />
           ) : amount > 0 ? (
-            <button type="button" onClick={() => onQty(0)} className="rounded-full px-3 py-2 text-sm text-mute">
+            <button type="button" onClick={() => onQty(0)} className="rounded-full px-2 py-1.5 text-sm text-mute">
               Quitar
             </button>
           ) : (
             <button
               type="button"
               onClick={() => onQty(1)}
-              className="rounded-full bg-gold px-3 py-2 text-sm font-medium text-ink"
+              className="rounded-full bg-gold px-3 py-1.5 text-sm font-medium text-ink"
             >
               Lo tengo
             </button>
           )}
         </div>
       </div>
-      {!built && part.materials.length > 0 && (
-        <div className={crafted ? "mt-2 opacity-70" : "mt-2"}>
+      {!built && !isFinalBlueprint(part) && part.materials.length > 0 && (
+        <div className={crafted ? "mt-1.5 pl-12 opacity-70" : "mt-1.5 pl-12"}>
           <MaterialList materials={part.materials} muted={crafted} onOpenItem={onOpenItem} />
         </div>
       )}

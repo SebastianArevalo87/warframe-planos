@@ -759,7 +759,6 @@ export function App() {
           label={openItem ? names.item(openItem.id, openItem.name) : "Detalle del plano"}
           onClose={hideItem}
           onBack={canGoBack ? () => window.history.back() : undefined}
-          wide
         >
           {detailLoading && <p className="px-2 pb-4 text-mute">Abriendo el plano…</p>}
           {!detailLoading && !openItem && <p className="px-2 pb-4 text-mute">Ese plano no está en la base.</p>}

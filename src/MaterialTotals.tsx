@@ -39,34 +39,32 @@ export function MaterialList({
   spread?: boolean;
 }) {
   return (
-    <ul className={spread ? "grid gap-0.5 lg:grid-cols-2 lg:gap-x-10" : "grid gap-0.5"}>
+    <ul className={spread ? "flex flex-wrap gap-x-4 gap-y-1" : "flex flex-wrap gap-x-3 gap-y-1"}>
       {materials.map((material) => {
         const openable = Boolean(onOpenItem) && isBuiltItem(material.id);
-        const nameClass = muted
-          ? "min-w-0 flex-1 text-sm leading-snug break-words text-mute line-through"
-          : "min-w-0 flex-1 text-sm leading-snug break-words text-bone";
+        const nameClass = muted ? "text-sm leading-snug text-mute line-through" : "text-sm leading-snug text-bone";
         const body = (
           <>
             <MaterialIcon image={material.image} />
             <span className={openable ? `${nameClass} underline decoration-gold/50 underline-offset-2` : nameClass}>
               {material.name}
             </span>
-            <span className="shrink-0 text-sm font-medium text-gold tabular-nums">{formatAmount(material.count)}</span>
+            <span className="text-sm font-medium text-gold tabular-nums">{formatAmount(material.count)}</span>
           </>
         );
         return (
-          <li key={material.id} className="min-w-0">
+          <li key={material.id} className="max-w-full">
             {openable && onOpenItem ? (
               <button
                 type="button"
                 onClick={() => onOpenItem(material.id)}
                 aria-label={`Ver requisitos de ${material.name}`}
-                className="flex w-full min-w-0 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-gold/10"
+                className="flex max-w-full items-center gap-1.5 rounded-lg px-1 py-0.5 text-left hover:bg-gold/10"
               >
                 {body}
               </button>
             ) : (
-              <div className="flex min-w-0 items-center gap-2 px-1 py-1">{body}</div>
+              <div className="flex max-w-full items-center gap-1.5 px-1 py-0.5">{body}</div>
             )}
           </li>
         );
@@ -77,16 +75,16 @@ export function MaterialList({
 
 function MaterialIcon({ image }: { image: string | null }) {
   const [failed, setFailed] = useState(false);
-  if (!image || failed) return <span className="h-8 w-8 shrink-0" aria-hidden="true" />;
+  if (!image || failed) return null;
   return (
     <img
       src={image}
       alt=""
-      width={32}
-      height={32}
+      width={24}
+      height={24}
       loading="lazy"
       decoding="async"
-      className="h-8 w-8 shrink-0 object-contain"
+      className="h-6 w-6 shrink-0 object-contain"
       onError={() => setFailed(true)}
     />
   );

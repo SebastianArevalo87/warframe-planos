@@ -656,6 +656,7 @@ begin
     select
       mat->>'id' as id,
       mat->>'name' as name,
+      max(mat->>'image') as image,
       sum((mat->>'count')::bigint) as count
     from filtered f
     join public.catalog_parts p on p.item_id = f.id
@@ -673,7 +674,8 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', id,
     'name', name,
-    'count', count
+    'count', count,
+    'image', image
   ) order by case when id = 'credits' then 1 else 0 end, count desc, name), '[]'::jsonb)
   into result
   from lines;

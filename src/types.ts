@@ -4,6 +4,7 @@ export type CraftMaterial = {
   id: string;
   name: string;
   count: number;
+  image: string | null;
 };
 
 export type CatalogPart = {

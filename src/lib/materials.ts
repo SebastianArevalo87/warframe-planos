@@ -69,12 +69,19 @@ export function indexRecipes(raw: Record<string, RawRecipe>): RecipeBook {
   return { byResult, byKey };
 }
 
-export function materialsForPart(partId: string, book: RecipeBook): CraftMaterial[] {
+const IMAGE_BASE = "https://cdn.warframestat.us/img/";
+const CREDITS_IMAGE = `${IMAGE_BASE}CollectCredits.png`;
+
+export function materialsForPart(
+  partId: string,
+  book: RecipeBook,
+  images: ReadonlyMap<string, string> = new Map(),
+): CraftMaterial[] {
   const crafted = book.byResult.get(partId) ?? [];
-  const fromComponent = bestRecipe(crafted);
+  const fromComponent = bestRecipe(crafted, images);
   if (fromComponent) return fromComponent;
   const keyed = book.byKey.get(partId);
-  return keyed ? materialEntries(keyed) : [];
+  return keyed ? materialEntries(keyed, images) : [];
 }
 
 export function sumMaterials(groups: CraftMaterial[][]): CraftMaterial[] {
@@ -82,8 +89,10 @@ export function sumMaterials(groups: CraftMaterial[][]): CraftMaterial[] {
   for (const group of groups) {
     for (const material of group) {
       const current = totals.get(material.id);
-      if (current) current.count += material.count;
-      else totals.set(material.id, { ...material });
+      if (current) {
+        current.count += material.count;
+        if (!current.image && material.image) current.image = material.image;
+      } else totals.set(material.id, { ...material });
     }
   }
   return [...totals.values()].sort((left, right) => {
@@ -97,16 +106,16 @@ export function formatAmount(count: number) {
   return new Intl.NumberFormat("es-AR").format(count);
 }
 
-function bestRecipe(recipes: RawRecipe[]): CraftMaterial[] {
+function bestRecipe(recipes: RawRecipe[], images: ReadonlyMap<string, string>): CraftMaterial[] {
   let best: CraftMaterial[] = [];
   for (const recipe of recipes) {
-    const materials = materialEntries(recipe);
+    const materials = materialEntries(recipe, images);
     if (materials.length > best.length) best = materials;
   }
   return best;
 }
 
-function materialEntries(recipe: RawRecipe): CraftMaterial[] {
+function materialEntries(recipe: RawRecipe, images: ReadonlyMap<string, string>): CraftMaterial[] {
   const counts = new Map<string, number>();
   for (const ingredient of recipe.ingredients ?? []) {
     const id = ingredient.ItemType?.trim() ?? "";
@@ -118,12 +127,19 @@ function materialEntries(recipe: RawRecipe): CraftMaterial[] {
     id,
     name: resourceName(id),
     count,
+    image: imageFor(id, images),
   }));
   const credits = Number(recipe.buildPrice);
   if (Number.isFinite(credits) && credits > 0) {
-    materials.push({ id: "credits", name: "Créditos", count: credits });
+    materials.push({ id: "credits", name: "Créditos", count: credits, image: CREDITS_IMAGE });
   }
   return materials;
+}
+
+function imageFor(id: string, images: ReadonlyMap<string, string>): string | null {
+  const name = images.get(id)?.trim();
+  if (!name) return null;
+  return `${IMAGE_BASE}${encodeURIComponent(name)}`;
 }
 
 function isMaterial(path: string) {

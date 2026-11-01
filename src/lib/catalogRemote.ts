@@ -177,7 +177,11 @@ function asMaterials(value: unknown): CraftMaterial[] {
     if (typeof material.id !== "string" || typeof material.name !== "string" || !Number.isInteger(count) || count <= 0) {
       return [];
     }
-    return [{ id: material.id, name: material.name, count }];
+    const image =
+      typeof material.image === "string" && material.image.startsWith("https://cdn.warframestat.us/img/")
+        ? material.image
+        : null;
+    return [{ id: material.id, name: material.name, count, image }];
   });
 }
 

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { ItemSummary } from "./lib/catalogRemote.ts";
 import type { CatalogItem, CatalogPart } from "./types.ts";
 import { fetchPrice, fetchPrices, marketItemUrl, type PriceQuote } from "./lib/market.ts";
-import { formatAmount, sumMaterials } from "./lib/materials.ts";
-import { MaterialTotals } from "./MaterialTotals.tsx";
+import { sumMaterials } from "./lib/materials.ts";
+import { MaterialList, MaterialTotals } from "./MaterialTotals.tsx";
 
 const KIND_LABEL = {
   warframe: "Warframe",
@@ -378,11 +378,6 @@ function PartRow({
           {part.image && <ItemImage src={part.image} compact />}
           <div className="min-w-0">
             <p className={amount > 0 ? "text-bone" : "text-mute"}>{part.title}</p>
-            {!built && part.materials.length > 0 && (
-              <p className={crafted ? "text-xs text-mute line-through" : "text-xs text-mute"}>
-                {part.materials.map((material) => `${formatAmount(material.count)} ${material.name}`).join(" · ")}
-              </p>
-            )}
             {forSale ? (
               <p className="text-xs text-gold">{amount} para vender</p>
             ) : (
@@ -425,6 +420,11 @@ function PartRow({
           )}
         </div>
       </div>
+      {!built && part.materials.length > 0 && (
+        <div className={crafted ? "mt-2 opacity-70" : "mt-2"}>
+          <MaterialList materials={part.materials} muted={crafted} />
+        </div>
+      )}
     </li>
   );
 }

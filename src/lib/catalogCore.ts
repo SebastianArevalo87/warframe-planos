@@ -36,11 +36,14 @@ const DATA_FILES = ["Warframes", "Primary", "Secondary", "Melee"];
 const DATA_BASE = "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json";
 const RECIPES_URL = "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/senpai/ExportRecipes.json";
 
+const IMAGE_FILES = ["Misc", "Resources", "Fish", "Gear"];
+
 export async function fetchSource(): Promise<{
   version: string;
   groups: RawItem[][];
   components: RawComponent[];
   recipes: RecipeBook;
+  images: Map<string, string>;
 }> {
   const commitResponse = await fetch("https://api.github.com/repos/WFCD/warframe-items/commits/master", {
     headers: {
@@ -52,7 +55,7 @@ export async function fetchSource(): Promise<{
   const commit = (await commitResponse.json()) as { sha?: string };
   const version = commit.sha?.slice(0, 7) ?? "github";
 
-  const [groups, components, recipes] = await Promise.all([
+  const [groups, components, recipes, images] = await Promise.all([
     Promise.all(
       DATA_FILES.map(async (file) => {
         const response = await fetch(`${DATA_BASE}/${file}.json`);
@@ -71,9 +74,32 @@ export async function fetchSource(): Promise<{
         return indexRecipes(raw && typeof raw === "object" ? raw : {});
       })
       .catch(() => indexRecipes({})),
+    fetchMaterialImages(),
   ]);
 
-  return { version, groups, components, recipes };
+  return { version, groups, components, recipes, images };
+}
+
+async function fetchMaterialImages(): Promise<Map<string, string>> {
+  const images = new Map<string, string>();
+  await Promise.all(
+    IMAGE_FILES.map(async (file) => {
+      try {
+        const response = await fetch(`${DATA_BASE}/${file}.json`);
+        if (!response.ok) return;
+        const data = (await response.json()) as Array<{ uniqueName?: string; imageName?: string }>;
+        if (!Array.isArray(data)) return;
+        for (const item of data) {
+          const id = item.uniqueName?.trim();
+          const image = item.imageName?.trim();
+          if (id && image) images.set(id, image);
+        }
+      } catch {
+        return;
+      }
+    }),
+  );
+  return images;
 }
 
 const KIND_BY_CATEGORY: Record<string, ItemKind> = {
@@ -312,6 +338,7 @@ export function buildCatalog(
   generatedAt: string,
   components: RawComponent[] = [],
   recipes: RecipeBook = indexRecipes({}),
+  images: ReadonlyMap<string, string> = new Map(),
 ): Catalog {
   const market = indexMarket(entries);
   const componentById = new Map<string, RawComponent>();
@@ -349,7 +376,7 @@ export function buildCatalog(
           tradable: resolved.tradable === true || component.tradable === true || slug !== null,
           slug,
           image: itemImage(resolved.imageName),
-          materials: materialsForPart(partId, recipes),
+          materials: materialsForPart(partId, recipes, images),
         });
       }
 

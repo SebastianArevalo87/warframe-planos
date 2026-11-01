@@ -627,9 +627,14 @@ export function App() {
           <Dashboard
             stats={stats}
             accountName={profile.warframeAccount.trim()}
+            collection={collection}
             onOpen={showItem}
             onSearch={openSearch}
             onSell={() => openPage("sell")}
+            onMastered={() => {
+              window.location.hash = "dominados";
+              openPage("load");
+            }}
           />
           <button
             type="button"

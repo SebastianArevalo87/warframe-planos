@@ -1,3 +1,4 @@
+import type { AdvicePart } from "./relicAdvice.ts";
 import { isItemKind, type Catalog, type CatalogItem, type CatalogPart, type CraftMaterial, type ItemKind, type PartRelic, type RelicRarity } from "../types.ts";
 import { supabase } from "./supabase.ts";
 
@@ -273,6 +274,27 @@ export type MasteryRow = {
   kind: ItemKind;
 };
 
+export async function fetchAdviceParts(): Promise<AdvicePart[]> {
+  if (!supabase) throw new Error("supabase");
+  const rows: AdvicePart[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("catalog_parts")
+      .select("id, short, relics, item_id, catalog_items(name, image, kind)")
+      .order("item_id")
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as unknown[];
+    for (const entry of batch) {
+      const row = asAdvicePart(entry);
+      if (row) rows.push(row);
+    }
+    if (batch.length < pageSize) break;
+  }
+  return rows;
+}
+
 export async function fetchItemIndex(): Promise<MasteryRow[]> {
   if (!supabase) throw new Error("supabase");
   const rows: MasteryRow[] = [];
@@ -303,6 +325,25 @@ function asMasteryRow(value: unknown): MasteryRow | null {
     name: row.name,
     image: typeof row.image === "string" && row.image ? row.image : null,
     kind: row.kind,
+  };
+}
+
+function asAdvicePart(value: unknown): AdvicePart | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as { id?: unknown; short?: unknown; relics?: unknown; item_id?: unknown; catalog_items?: unknown };
+  const parent = Array.isArray(row.catalog_items) ? row.catalog_items[0] : row.catalog_items;
+  if (!parent || typeof parent !== "object") return null;
+  const item = parent as { name?: unknown; image?: unknown; kind?: unknown };
+  if (typeof row.id !== "string" || typeof row.short !== "string" || typeof row.item_id !== "string") return null;
+  if (typeof item.name !== "string" || !item.name || !isItemKind(item.kind)) return null;
+  return {
+    id: row.id,
+    short: row.short,
+    itemId: row.item_id,
+    itemName: item.name,
+    image: typeof item.image === "string" && item.image ? item.image : null,
+    kind: item.kind,
+    relics: asRelics(row.relics),
   };
 }
 

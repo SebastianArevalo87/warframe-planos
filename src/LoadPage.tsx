@@ -107,7 +107,7 @@ export function LoadPage({
   const [group, setGroup] = useState<GroupId>("warframe");
   const [type, setType] = useState("Plano");
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<"parts" | "mastered">("parts");
+  const [mode, setMode] = useState<"parts" | "mastered">(window.location.hash === "#dominados" ? "mastered" : "parts");
 
   useEffect(() => {
     let cancelled = false;
@@ -175,7 +175,10 @@ export function LoadPage({
           type="button"
           role="tab"
           aria-selected={mode === "parts"}
-          onClick={() => setMode("parts")}
+          onClick={() => {
+            setMode("parts");
+            window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+          }}
           className={mode === "parts" ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink" : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"}
         >
           Planos
@@ -184,7 +187,10 @@ export function LoadPage({
           type="button"
           role="tab"
           aria-selected={mode === "mastered"}
-          onClick={() => setMode("mastered")}
+          onClick={() => {
+            setMode("mastered");
+            window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#dominados`);
+          }}
           className={mode === "mastered" ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink" : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"}
         >
           Dominados

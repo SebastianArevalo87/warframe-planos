@@ -154,9 +154,13 @@ export function LoadPage({
     [qty, rows],
   );
 
-  const needle = fold(query.trim());
+  const words = fold(query.trim()).split(/\s+/).filter(Boolean);
   const visible = grouped
-    .filter((row) => row.short === activeType && (needle === "" || fold(row.itemName).includes(needle) || fold(row.title).includes(needle)))
+    .filter((row) => {
+      if (row.short !== activeType) return false;
+      const haystack = `${fold(row.itemName)} ${fold(row.title)}`;
+      return words.every((word) => haystack.includes(word));
+    })
     .sort((a, b) => a.itemName.localeCompare(b.itemName, "es") || a.title.localeCompare(b.title, "es"));
   const ownedVisible = visible.filter((row) => (qty[row.partId] ?? 0) > 0).length;
   const progress = visible.length === 0 ? 0 : Math.round((ownedVisible / visible.length) * 100);

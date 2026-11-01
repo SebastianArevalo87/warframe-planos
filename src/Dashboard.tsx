@@ -3,6 +3,7 @@ import { fetchAdviceParts, fetchItemIndex, type DashboardHighlight, type Dashboa
 import { formatMastery } from "./lib/mastery.ts";
 import { readyToMaster, relicTargets, sharedRelics, type AdvicePart, type RelicTarget } from "./lib/relicAdvice.ts";
 import { fetchWorld, type WorldNow } from "./lib/worldstate.ts";
+import { gameName } from "./lib/gameName.ts";
 import { KIND_LABEL, type Collection, type KindFilter, type StatusFilter } from "./types.ts";
 
 export function Dashboard({
@@ -74,7 +75,7 @@ export function Dashboard({
   const known = useMemo(() => {
     const byName = new Map<string, { id: string; mastered: boolean }>();
     const mastered = new Set(collection.mastered);
-    for (const item of gear ?? []) byName.set(item.name.toLowerCase(), { id: item.id, mastered: mastered.has(item.id) });
+    for (const item of gear ?? []) byName.set(gameName(item.name).toLowerCase(), { id: item.id, mastered: mastered.has(item.id) });
     return byName;
   }, [collection.mastered, gear]);
 
@@ -380,16 +381,17 @@ function ChoiceList({
       ) : (
         <ul className="mt-2 flex flex-wrap gap-2">
           {names.map((name) => {
-            const match = known.get(name.toLowerCase());
+            const match = known.get(gameName(name).toLowerCase());
             const className = match?.mastered
               ? "rounded-full border border-moss/40 px-2.5 py-1 text-sm text-moss"
               : "rounded-full border border-line px-2.5 py-1 text-sm text-bone hover:border-gold";
             const note = match ? (match.mastered ? "dominado" : "sin dominar") : "";
-            if (!match) return <li key={name} className={className}>{name}</li>;
+            const label = gameName(name);
+            if (!match) return <li key={name} className={className}>{label}</li>;
             return (
               <li key={name}>
-                <button type="button" onClick={() => onOpen(match.id)} className={className} aria-label={`${name}, ${note}`}>
-                  {name}
+                <button type="button" onClick={() => onOpen(match.id)} className={className} aria-label={`${label}, ${note}`}>
+                  {label}
                 </button>
               </li>
             );

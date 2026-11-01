@@ -548,14 +548,16 @@ export function App() {
   }
 
   return (
-    <div className={`mx-auto w-full px-4 pb-16 lg:px-8 ${page === "home" || page === "load" ? "max-w-[1600px]" : "max-w-3xl lg:max-w-6xl xl:max-w-7xl"}`}>
-      <header className="pt-5 pb-4">
-        <div ref={accountMenuRef} className="relative">
-          <div className="flex items-start justify-between gap-3">
-            <button type="button" onClick={() => openPage("home")} className="text-left">
-              <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
-              <p className="text-sm text-mute">Planos</p>
-            </button>
+    <div className="mx-auto w-full max-w-3xl px-4 pb-16 lg:max-w-6xl lg:px-8 xl:max-w-7xl">
+      <header className="pt-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <button type="button" onClick={() => openPage("home")} className="text-left">
+            <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
+            <h1 className="text-3xl font-medium leading-none text-bone">Planos</h1>
+          </button>
+          <div className="flex items-center gap-3">
+            <MasteryBadge mastered={collection.mastered} />
+            <div ref={accountMenuRef} className="relative">
             <button
               type="button"
               aria-expanded={accountOpen}
@@ -570,13 +572,12 @@ export function App() {
               )}
               <span className="truncate">{profile.warframeAccount.trim() || "Cuenta"}</span>
             </button>
-          </div>
           {accountOpen && (
             <div
               id="cuenta-menu"
               role="dialog"
               aria-label="Cuenta"
-              className="absolute inset-x-0 top-full z-30 mt-2 rounded-2xl border border-line bg-panel px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
+              className="absolute right-0 z-30 mt-2 w-72 rounded-2xl border border-line bg-panel px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
             >
               <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
@@ -604,16 +605,15 @@ export function App() {
               {accountHint && <p className="mt-2 text-xs text-clay">{accountHint}</p>}
             </div>
           )}
+            </div>
+          </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-          <nav className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1" aria-label="Secciones">
-            <PageHeading active={page === "home"} label="Tablero" onClick={() => openPage("home")} />
-            <PageHeading active={page === "search"} label="Buscar" onClick={() => openPage("search")} />
-            <PageHeading active={page === "load"} label="Cargar" onClick={() => openPage("load")} />
-            <PageHeading active={page === "sell"} label="Vender" onClick={() => openPage("sell")} />
-          </nav>
-          <MasteryBadge mastered={collection.mastered} />
-        </div>
+        <nav className="mt-5 flex flex-wrap gap-x-6 border-b border-line" aria-label="Secciones">
+          <PageLink active={page === "home"} label="Tablero" onClick={() => openPage("home")} />
+          <PageLink active={page === "search"} label="Buscar" onClick={() => openPage("search")} />
+          <PageLink active={page === "load"} label="Cargar" onClick={() => openPage("load")} />
+          <PageLink active={page === "sell"} label="Vender" onClick={() => openPage("sell")} />
+        </nav>
         {notice && <p className="mt-3 text-sm text-mute">{notice}</p>}
       </header>
 
@@ -753,13 +753,17 @@ export function App() {
   );
 }
 
-function PageHeading({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function PageLink({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      className={active ? "text-3xl font-medium text-bone" : "text-sm text-mute hover:text-bone"}
+      className={
+        active
+          ? "-mb-px border-b-2 border-gold pb-2 text-sm font-medium text-bone"
+          : "pb-2 text-sm text-mute hover:text-bone"
+      }
     >
       {label}
     </button>

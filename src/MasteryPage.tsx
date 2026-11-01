@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchItemIndex, type MasteryRow } from "./lib/catalogRemote.ts";
-import { masteryXp } from "./lib/mastery.ts";
-import { MasteryMark } from "./MasteryBadge.tsx";
 import { GEAR_GRID, GearCard } from "./ItemCard.tsx";
 import type { ItemKind } from "./types.ts";
 
@@ -67,18 +65,15 @@ export function MasteryPage({
     [done, rows],
   );
 
-  const needle = query.trim().toLowerCase();
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const visible = rows
-    .filter((row) => inGroup(row.kind, group) && (needle === "" || row.name.toLowerCase().includes(needle)))
+    .filter((row) => inGroup(row.kind, group) && words.every((word) => row.name.toLowerCase().includes(word)))
     .sort((a, b) => a.name.localeCompare(b.name, "es"));
   const ownedVisible = visible.filter((row) => done.has(row.id)).length;
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-xl text-sm text-mute">Rango 30, por nombre. Sigue dominado si lo vendiste o lo entregaste al Helminth.</p>
-        <MasteryMark xp={masteryXp(rows, mastered)} ready={!loading} />
-      </div>
+      <p className="text-sm text-mute">Rango 30, por nombre. Sigue dominado si lo vendiste o lo entregaste al Helminth.</p>
       {error && <p className="mt-3 text-clay">{error}</p>}
       {loading && <p className="mt-4 text-mute">Abriendo el equipo…</p>}
       {!loading && !error && (

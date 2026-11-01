@@ -698,7 +698,7 @@ export function App() {
         {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && rows.length === 0 && (
           <p className="text-mute">Ningún plano coincide con este filtro.</p>
         )}
-        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
           {rows.map((row) => (
             <ItemTile key={row.id} item={row} onOpen={() => showItem(row.id)} />
           ))}

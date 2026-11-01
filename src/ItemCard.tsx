@@ -228,7 +228,7 @@ export function ItemTile({ item, onOpen }: { item: ItemSummary; onOpen: () => vo
       type="button"
       onClick={onOpen}
       aria-label={`${item.name}. ${progress.label}`}
-      className={`relative aspect-square w-full overflow-hidden rounded-2xl border bg-ink text-left ${TILE_FRAME[progress.tone]}`}
+      className={`relative aspect-square w-full overflow-hidden rounded-xl border bg-ink text-left ${TILE_FRAME[progress.tone]}`}
     >
       {item.image && (
         <img
@@ -236,14 +236,14 @@ export function ItemTile({ item, onOpen }: { item: ItemSummary; onOpen: () => vo
           alt=""
           loading="lazy"
           decoding="async"
-          className={`absolute inset-0 h-full w-full object-contain p-3 ${progress.tone === "none" ? "opacity-45" : ""}`}
+          className={`absolute inset-0 h-full w-full object-contain p-2 ${progress.tone === "none" ? "opacity-45" : ""}`}
         />
       )}
-      <span className={`absolute top-2 left-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${TILE_BADGE[progress.tone]}`}>
+      <span className={`absolute top-1.5 left-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${TILE_BADGE[progress.tone]}`}>
         {progress.label}
       </span>
-      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/85 to-transparent px-2.5 pt-10 pb-2.5">
-        <span className="block truncate text-sm font-medium text-bone">{item.name}</span>
+      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/85 to-transparent px-2 pt-6 pb-1.5">
+        <span className="block truncate text-xs font-medium text-bone">{item.name}</span>
         {item.vaulted && <span className="text-[10px] text-clay">En la bóveda</span>}
       </span>
     </button>

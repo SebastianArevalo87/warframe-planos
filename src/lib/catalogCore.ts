@@ -277,6 +277,7 @@ function isListedPart(component: RawComponent, recipes: RecipeBook): boolean {
   if (isRecipe(component)) return true;
   const id = component.uniqueName?.trim() ?? "";
   if (!id || id.includes("/Items/") || id.includes("/Research/")) return false;
+  if (id.startsWith("/Lotus/Weapons/") || id.startsWith("/Lotus/Powersuits/")) return false;
   return (recipes.byResult.get(id)?.length ?? 0) > 0;
 }
 
@@ -399,6 +400,18 @@ export function buildCatalog(
   relics: ReadonlyMap<string, PartRelic[]> = new Map(),
 ): Catalog {
   const market = indexMarket(entries);
+  const knownNames = new Map(names);
+  const knownImages = new Map(images);
+  for (const group of groups) {
+    for (const raw of group) {
+      const id = raw.uniqueName?.trim();
+      const name = raw.name?.trim();
+      const image = raw.imageName?.trim();
+      if (!id) continue;
+      if (name) knownNames.set(id, name);
+      if (image) knownImages.set(id, image);
+    }
+  }
   const componentById = new Map<string, RawComponent>();
   for (const component of components) {
     const id = component.uniqueName?.trim();
@@ -422,7 +435,7 @@ export function buildCatalog(
         const partId = component.uniqueName?.trim();
         if (!partId || seenParts.has(partId) || !isListedPart(component, recipes)) continue;
         const resolved = componentById.get(partId) ?? component;
-        const partName = partNameOf(resolved, names);
+        const partName = partNameOf(resolved, knownNames);
         if (!partName) continue;
         const role = roleOf(name, partName);
         seenParts.add(partId);
@@ -434,8 +447,8 @@ export function buildCatalog(
           english: englishName(name, role),
           tradable: resolved.tradable === true || component.tradable === true || slug !== null,
           slug,
-          image: itemImage(resolved.imageName) ?? itemImage(images.get(partId)),
-          materials: materialsForPart(partId, recipes, images, names),
+          image: itemImage(resolved.imageName) ?? itemImage(knownImages.get(partId)),
+          materials: materialsForPart(partId, recipes, knownImages, knownNames),
           relics: relics.get(relicKey(partId)) ?? [],
         });
       }

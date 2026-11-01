@@ -172,7 +172,6 @@ function imageFor(id: string, images: ReadonlyMap<string, string>): string | nul
 
 function isMaterial(path: string) {
   if (path.includes("/Recipes/") || path.includes("/WeaponParts/")) return false;
-  if (path.startsWith("/Lotus/Weapons/")) return false;
   return true;
 }
 

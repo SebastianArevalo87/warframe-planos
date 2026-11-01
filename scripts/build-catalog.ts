@@ -8,7 +8,7 @@ const headers = {
   Platform: "pc",
 };
 
-const { version, groups, components } = await fetchSource();
+const { version, groups, components, recipes } = await fetchSource();
 const marketResponse = await fetch("https://api.warframe.market/v2/items", { headers });
 if (!marketResponse.ok) throw new Error("No pude leer Warframe Market");
 const marketJson = (await marketResponse.json()) as { data?: unknown };
@@ -19,6 +19,7 @@ const catalog = buildCatalog(
   version,
   new Date().toISOString(),
   components,
+  recipes,
 );
 
 const tradable = catalog.items.flatMap((item) => item.parts).filter((part) => part.tradable);

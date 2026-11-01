@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { ItemSummary } from "./lib/catalogRemote.ts";
 import type { CatalogItem, CatalogPart } from "./types.ts";
 import { fetchPrice, fetchPrices, marketItemUrl, type PriceQuote } from "./lib/market.ts";
+import { formatAmount, sumMaterials } from "./lib/materials.ts";
+import { MaterialTotals } from "./MaterialTotals.tsx";
 
 const KIND_LABEL = {
   warframe: "Warframe",
@@ -15,6 +17,8 @@ type ItemCardProps = {
   visiblePartIds: string[] | null;
   qty: Record<string, number>;
   built: boolean;
+  craftedParts: string[];
+  onToggleCrafted: (partId: string) => void;
   onPartQty: (id: string, next: number) => void;
   onItemQty: (next: number) => void;
   onToggleBuilt: () => void;
@@ -29,6 +33,8 @@ export function ItemCard({
   visiblePartIds,
   qty,
   built,
+  craftedParts,
+  onToggleCrafted,
   onPartQty,
   onItemQty,
   onToggleBuilt,
@@ -51,6 +57,10 @@ export function ItemCard({
   const [buyPrices, setBuyPrices] = useState<Record<string, PriceQuote | null>>({});
   const [buyLoading, setBuyLoading] = useState(false);
   const missingKey = missingSlugs.join("|");
+  const crafted = new Set(craftedParts);
+  const remainingMaterials = sumMaterials(
+    built ? [] : item.parts.filter((part) => !crafted.has(part.id)).map((part) => part.materials ?? []),
+  );
 
   useEffect(() => {
     const slugs = missingKey ? missingKey.split("|") : [];
@@ -132,19 +142,30 @@ export function ItemCard({
       )}
 
       {parts.length > 0 && (
-        <ul className="mt-3 flex flex-col gap-2">
-          {parts.map((part) => (
-            <PartRow
-              key={part.id}
-              part={part}
-              amount={qty[part.id] ?? 0}
-              built={built}
-              quote={part.slug ? buyPrices[part.slug] : null}
-              pricePending={buyLoading}
-              onQty={(next) => onPartQty(part.id, next)}
+        <div className="mt-3 flex flex-col gap-3">
+          {!built && (
+            <MaterialTotals
+              title="Materiales que faltan"
+              note="Sin las piezas que marcaste como construidas."
+              materials={remainingMaterials}
             />
-          ))}
-        </ul>
+          )}
+          <ul className="flex flex-col gap-2">
+            {parts.map((part) => (
+              <PartRow
+                key={part.id}
+                part={part}
+                amount={qty[part.id] ?? 0}
+                built={built}
+                crafted={crafted.has(part.id)}
+                quote={part.slug ? buyPrices[part.slug] : null}
+                pricePending={buyLoading}
+                onQty={(next) => onPartQty(part.id, next)}
+                onToggleCrafted={() => onToggleCrafted(part.id)}
+              />
+            ))}
+          </ul>
+        </div>
       )}
       {!built && item.setSlug && missingSlugs.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/30 bg-ink/40 px-3 py-2">
@@ -332,16 +353,20 @@ function PartRow({
   part,
   amount,
   built,
+  crafted,
   quote,
   pricePending,
   onQty,
+  onToggleCrafted,
 }: {
   part: CatalogPart;
   amount: number;
   built: boolean;
+  crafted: boolean;
   quote: PriceQuote | null | undefined;
   pricePending: boolean;
   onQty: (next: number) => void;
+  onToggleCrafted: () => void;
 }) {
   const vendible = sellable(part);
   const forSale = vendible && built && amount > 0;
@@ -353,6 +378,11 @@ function PartRow({
           {part.image && <ItemImage src={part.image} compact />}
           <div className="min-w-0">
             <p className={amount > 0 ? "text-bone" : "text-mute"}>{part.title}</p>
+            {!built && part.materials.length > 0 && (
+              <p className={crafted ? "text-xs text-mute line-through" : "text-xs text-mute"}>
+                {part.materials.map((material) => `${formatAmount(material.count)} ${material.name}`).join(" · ")}
+              </p>
+            )}
             {forSale ? (
               <p className="text-xs text-gold">{amount} para vender</p>
             ) : (
@@ -365,6 +395,19 @@ function PartRow({
             <BuyLink label={part.title} slug={part.slug} quote={quote} pending={pricePending} />
           )}
           {!needsBuy && part.slug && <PriceButton slug={part.slug} />}
+          {!built && part.materials.length > 0 && (
+            <button
+              type="button"
+              onClick={onToggleCrafted}
+              className={
+                crafted
+                  ? "rounded-full border border-moss/40 px-3 py-1.5 text-sm text-moss"
+                  : "rounded-full border border-line px-3 py-1.5 text-sm text-bone hover:border-gold"
+              }
+            >
+              {crafted ? "Construida" : "Ya la construí"}
+            </button>
+          )}
           {vendible ? (
             <Quantity value={amount} label={part.title} onChange={onQty} />
           ) : amount > 0 ? (

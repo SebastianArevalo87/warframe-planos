@@ -1,4 +1,5 @@
 import type { Catalog, CatalogItem, CatalogPart, ItemKind } from "../types.ts";
+import { indexRecipes, materialsForPart, type RawRecipe, type RecipeBook } from "./materials.ts";
 
 export type RawComponent = {
   name?: string;
@@ -33,8 +34,14 @@ export type MarketEntry = {
 
 const DATA_FILES = ["Warframes", "Primary", "Secondary", "Melee"];
 const DATA_BASE = "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json";
+const RECIPES_URL = "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/senpai/ExportRecipes.json";
 
-export async function fetchSource(): Promise<{ version: string; groups: RawItem[][]; components: RawComponent[] }> {
+export async function fetchSource(): Promise<{
+  version: string;
+  groups: RawItem[][];
+  components: RawComponent[];
+  recipes: RecipeBook;
+}> {
   const commitResponse = await fetch("https://api.github.com/repos/WFCD/warframe-items/commits/master", {
     headers: {
       Accept: "application/vnd.github+json",
@@ -45,7 +52,7 @@ export async function fetchSource(): Promise<{ version: string; groups: RawItem[
   const commit = (await commitResponse.json()) as { sha?: string };
   const version = commit.sha?.slice(0, 7) ?? "github";
 
-  const [groups, components] = await Promise.all([
+  const [groups, components, recipes] = await Promise.all([
     Promise.all(
       DATA_FILES.map(async (file) => {
         const response = await fetch(`${DATA_BASE}/${file}.json`);
@@ -57,9 +64,16 @@ export async function fetchSource(): Promise<{ version: string; groups: RawItem[
       if (!response.ok) throw new Error("catalog");
       return (await response.json()) as RawComponent[];
     }),
+    fetch(RECIPES_URL)
+      .then(async (response) => {
+        if (!response.ok) return indexRecipes({});
+        const raw = (await response.json()) as Record<string, RawRecipe>;
+        return indexRecipes(raw && typeof raw === "object" ? raw : {});
+      })
+      .catch(() => indexRecipes({})),
   ]);
 
-  return { version, groups, components };
+  return { version, groups, components, recipes };
 }
 
 const KIND_BY_CATEGORY: Record<string, ItemKind> = {
@@ -297,6 +311,7 @@ export function buildCatalog(
   sourceVersion: string,
   generatedAt: string,
   components: RawComponent[] = [],
+  recipes: RecipeBook = indexRecipes({}),
 ): Catalog {
   const market = indexMarket(entries);
   const componentById = new Map<string, RawComponent>();
@@ -334,6 +349,7 @@ export function buildCatalog(
           tradable: resolved.tradable === true || component.tradable === true || slug !== null,
           slug,
           image: itemImage(resolved.imageName),
+          materials: materialsForPart(partId, recipes),
         });
       }
 

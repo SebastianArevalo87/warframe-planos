@@ -1,5 +1,11 @@
 export type ItemKind = "warframe" | "primary" | "secondary" | "melee";
 
+export type CraftMaterial = {
+  id: string;
+  name: string;
+  count: number;
+};
+
 export type CatalogPart = {
   id: string;
   short: string;
@@ -8,6 +14,7 @@ export type CatalogPart = {
   tradable: boolean;
   slug: string | null;
   image: string | null;
+  materials: CraftMaterial[];
 };
 
 export type CatalogItem = {
@@ -33,6 +40,7 @@ export type Collection = {
   built: string[];
   items: string[];
   qty: Record<string, number>;
+  crafted: string[];
 };
 
 export type Draft = {

@@ -23,9 +23,12 @@ create table if not exists public.catalog_parts (
   tradable boolean not null default false,
   slug text,
   image text,
+  materials jsonb not null default '[]'::jsonb,
   sort_order integer not null default 0,
   primary key (item_id, id)
 );
+
+alter table public.catalog_parts add column if not exists materials jsonb not null default '[]'::jsonb;
 
 alter table public.catalog_parts drop constraint if exists catalog_parts_pkey;
 alter table public.catalog_parts add primary key (item_id, id);
@@ -450,7 +453,8 @@ as $$
           'english', p.english,
           'tradable', p.tradable,
           'slug', p.slug,
-          'image', p.image
+          'image', p.image,
+          'materials', coalesce(p.materials, '[]'::jsonb)
         ) order by p.sort_order, p.title
       )
       from public.catalog_parts p
@@ -508,7 +512,7 @@ begin
     set_slug = coalesce(excluded.set_slug, public.catalog_items.set_slug),
     updated_at = now();
 
-  insert into public.catalog_parts (id, item_id, short, title, english, tradable, slug, image, sort_order)
+  insert into public.catalog_parts (id, item_id, short, title, english, tradable, slug, image, materials, sort_order)
   select
     part->>'id',
     element->>'id',
@@ -518,6 +522,10 @@ begin
     coalesce((part->>'tradable')::boolean, false),
     nullif(part->>'slug', ''),
     nullif(part->>'image', ''),
+    case
+      when jsonb_typeof(part->'materials') = 'array' then part->'materials'
+      else '[]'::jsonb
+    end,
     ordinality::integer
   from jsonb_array_elements(coalesce(payload->'items', '[]'::jsonb)) as element
   cross join lateral jsonb_array_elements(coalesce(element->'parts', '[]'::jsonb)) with ordinality as parts(part, ordinality)
@@ -530,6 +538,10 @@ begin
     tradable = excluded.tradable,
     slug = coalesce(excluded.slug, public.catalog_parts.slug),
     image = excluded.image,
+    materials = case
+      when jsonb_array_length(excluded.materials) = 0 then public.catalog_parts.materials
+      else excluded.materials
+    end,
     sort_order = excluded.sort_order;
 
   insert into public.catalog_meta (id, source_version, generated_at)
@@ -550,8 +562,129 @@ revoke all on function public.fold(text) from public;
 revoke all on function public.stock_qty(jsonb, text, boolean) from public;
 revoke all on function public.dashboard_stats() from public;
 revoke all on function public.list_items(text, text, text, integer, integer) from public;
+create or replace function public.material_totals(p_kind text, p_query text, p_status text)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = public
+as $$
+declare
+  col jsonb := '{"parts":[],"built":[],"items":[],"crafted":[]}'::jsonb;
+  words text[];
+  result jsonb;
+begin
+  if coalesce(p_status, 'missing') = 'built' then
+    return '[]'::jsonb;
+  end if;
+  if coalesce(p_kind, 'all') = 'all'
+     and length(btrim(coalesce(p_query, ''))) < 2
+     and coalesce(p_status, 'missing') not in ('ready', 'almost', 'owned') then
+    return '[]'::jsonb;
+  end if;
+
+  select collection into col from public.profiles where user_id = auth.uid();
+  if col is null then
+    col := '{"parts":[],"built":[],"items":[],"crafted":[]}'::jsonb;
+  end if;
+  words := array_remove(regexp_split_to_array(public.fold(coalesce(p_query, '')), '\s+'), '');
+
+  with owned as (
+    select
+      array(select jsonb_array_elements_text(col->'parts')) as parts,
+      array(select jsonb_array_elements_text(col->'built')) as built,
+      array(select jsonb_array_elements_text(col->'items')) as items
+  ),
+  crafted as (
+    select split_part(value, '::', 1) as item_id, split_part(value, '::', 2) as part_id
+    from jsonb_array_elements_text(coalesce(col->'crafted', '[]'::jsonb)) as value
+    where value like '%::%'
+  ),
+  base as (
+    select
+      i.id,
+      count(p.id)::int as part_count,
+      count(p.id) filter (where p.id = any(o.parts))::int as owned_count,
+      i.id = any(o.built) as is_built,
+      i.id = any(o.items) as owned_item,
+      public.fold(
+        i.name || ' ' || coalesce(string_agg(p.title || ' ' || p.short || ' ' || p.english, ' '), '')
+      ) as haystack
+    from public.catalog_items i
+    cross join owned o
+    left join public.catalog_parts p on p.item_id = i.id
+    where coalesce(p_kind, 'all') = 'all'
+      or (p_kind = 'weapon' and i.kind <> 'warframe')
+      or i.kind = p_kind
+    group by i.id, i.name, o.parts, o.built, o.items
+  ),
+  filtered as (
+    select id
+    from base
+    where not is_built
+      and (
+        coalesce(array_length(words, 1), 0) = 0
+        or not exists (
+          select 1 from unnest(words) as word
+          where haystack not like '%' || word || '%'
+        )
+      )
+      and (
+        coalesce(p_status, 'all') = 'all'
+        or (
+          p_status = 'missing'
+          and not (part_count = 0 and owned_item)
+        )
+        or (
+          p_status = 'ready'
+          and part_count > 0
+          and owned_count = part_count
+        )
+        or (
+          p_status = 'almost'
+          and part_count > 0
+          and owned_count > 0
+          and part_count - owned_count between 1 and 2
+        )
+        or (
+          p_status = 'owned'
+          and owned_count > 0
+        )
+      )
+  ),
+  lines as (
+    select
+      mat->>'id' as id,
+      mat->>'name' as name,
+      sum((mat->>'count')::bigint) as count
+    from filtered f
+    join public.catalog_parts p on p.item_id = f.id
+    cross join lateral jsonb_array_elements(coalesce(p.materials, '[]'::jsonb)) as mat
+    where jsonb_typeof(coalesce(p.materials, '[]'::jsonb)) = 'array'
+      and (mat->>'count') ~ '^[0-9]+$'
+      and coalesce(mat->>'id', '') <> ''
+      and coalesce(mat->>'name', '') <> ''
+      and not exists (
+        select 1 from crafted c
+        where c.item_id = p.item_id and c.part_id = p.id
+      )
+    group by mat->>'id', mat->>'name'
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', id,
+    'name', name,
+    'count', count
+  ) order by case when id = 'credits' then 1 else 0 end, count desc, name), '[]'::jsonb)
+  into result
+  from lines;
+
+  return result;
+end;
+$$;
+
 revoke all on function public.item_detail(text) from public;
 revoke all on function public.sell_stock() from public;
+revoke all on function public.material_totals(text, text, text) from public;
 revoke all on function public.upsert_catalog(jsonb) from public;
 
 grant execute on function public.fold(text) to authenticated;
@@ -560,6 +693,7 @@ grant execute on function public.dashboard_stats() to authenticated;
 grant execute on function public.list_items(text, text, text, integer, integer) to authenticated;
 grant execute on function public.item_detail(text) to authenticated;
 grant execute on function public.sell_stock() to authenticated;
+grant execute on function public.material_totals(text, text, text) to authenticated;
 grant execute on function public.upsert_catalog(jsonb) to authenticated;
 
 notify pgrst, 'reload schema';

@@ -1,4 +1,4 @@
-import type { Catalog, CatalogItem, CatalogPart, ItemKind } from "../types.ts";
+import type { Catalog, CatalogItem, CatalogPart, CraftMaterial, ItemKind } from "../types.ts";
 import { supabase } from "./supabase.ts";
 
 export type DashboardHighlight = {
@@ -164,7 +164,32 @@ function asPart(value: unknown): CatalogPart | null {
     tradable: part.tradable === true || slug !== null,
     slug,
     image: typeof part.image === "string" ? part.image : null,
+    materials: asMaterials(part.materials),
   };
+}
+
+function asMaterials(value: unknown): CraftMaterial[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const material = entry as Partial<CraftMaterial>;
+    const count = Number(material.count);
+    if (typeof material.id !== "string" || typeof material.name !== "string" || !Number.isInteger(count) || count <= 0) {
+      return [];
+    }
+    return [{ id: material.id, name: material.name, count }];
+  });
+}
+
+export async function fetchMaterialTotals(kind: string, query: string, status: string): Promise<CraftMaterial[]> {
+  if (!supabase) throw new Error("supabase");
+  const { data, error } = await supabase.rpc("material_totals", {
+    p_kind: kind,
+    p_query: query,
+    p_status: status,
+  });
+  if (error) throw error;
+  return asMaterials(data);
 }
 
 export async function fetchItemDetail(id: string): Promise<CatalogItem | null> {

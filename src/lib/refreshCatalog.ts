@@ -2,7 +2,7 @@ import { buildCatalog, fetchSource, marketEntries } from "./catalogCore.ts";
 import type { Catalog } from "../types.ts";
 
 export async function refreshCatalog(previous?: Catalog): Promise<Catalog> {
-  const { version, groups, components } = await fetchSource();
+  const { version, groups, components, recipes } = await fetchSource();
 
   let entries: ReturnType<typeof marketEntries> = [];
   const marketBase = import.meta.env.DEV ? "/market" : "https://api.warframe.market";
@@ -19,7 +19,7 @@ export async function refreshCatalog(previous?: Catalog): Promise<Catalog> {
     entries = [];
   }
 
-  const next = buildCatalog(groups, entries, version, new Date().toISOString(), components);
+  const next = buildCatalog(groups, entries, version, new Date().toISOString(), components, recipes);
   if (entries.length === 0 && previous) {
     const slugs = new Map<string, string>();
     const itemSlugs = new Map<string, string>();

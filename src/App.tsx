@@ -13,7 +13,7 @@ import { SellPage } from "./SellPage.tsx";
 import { LoadPage } from "./LoadPage.tsx";
 import { MasteryBadge } from "./MasteryBadge.tsx";
 import { FilterBar } from "./FilterBar.tsx";
-import { ItemCard, ItemTile } from "./ItemCard.tsx";
+import { GEAR_GRID, ItemCard, ItemTile } from "./ItemCard.tsx";
 import { RelicModal } from "./RelicModal.tsx";
 import { Sheet } from "./Sheet.tsx";
 import { Gate, LoginScreen } from "./Login.tsx";
@@ -416,23 +416,24 @@ export function App() {
 
   function toggleMastered(id: string) {
     const current = collectionRef.current;
-    const mastered = current.mastered.includes(id)
-      ? current.mastered.filter((itemId) => itemId !== id)
-      : [...current.mastered, id];
-    const updated = { ...current, mastered };
+    const marking = !current.mastered.includes(id);
+    const mastered = marking ? [...current.mastered, id] : current.mastered.filter((itemId) => itemId !== id);
+    const builtIds = marking && !current.built.includes(id) ? [...current.built, id] : current.built;
+    const updated = { ...current, mastered, built: builtIds };
     collectionRef.current = updated;
     writeAccount(updated);
+    if (openItem?.id === id && marking) patchOpenRow({ built: true });
   }
 
   function toggleBuilt(id: string) {
     const current = collectionRef.current;
-    const builtIds = current.built.includes(id)
-      ? current.built.filter((itemId) => itemId !== id)
-      : [...current.built, id];
-    const updated = { ...current, built: builtIds };
+    const marking = !current.built.includes(id);
+    const builtIds = marking ? [...current.built, id] : current.built.filter((itemId) => itemId !== id);
+    const mastered = marking ? current.mastered : current.mastered.filter((itemId) => itemId !== id);
+    const updated = { ...current, built: builtIds, mastered };
     collectionRef.current = updated;
     writeAccount(updated);
-    patchOpenRow({ built: builtIds.includes(id) });
+    if (openItem?.id === id) patchOpenRow({ built: marking });
   }
 
   function toggleCrafted(itemId: string, partId: string) {
@@ -710,7 +711,7 @@ export function App() {
         {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && rows.length === 0 && (
           <p className="text-mute">Ningún plano coincide con este filtro.</p>
         )}
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+        <div className={`mt-4 ${GEAR_GRID}`}>
           {rows.map((row) => (
             <ItemTile key={row.id} item={row} onOpen={() => showItem(row.id)} />
           ))}

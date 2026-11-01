@@ -221,32 +221,69 @@ const TILE_BADGE = {
   none: "bg-ink/80 text-mute",
 } as const;
 
-export function ItemTile({ item, onOpen }: { item: ItemSummary; onOpen: () => void }) {
-  const progress = tileProgress(item);
+export const GEAR_GRID = "grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8";
+
+export function GearCard({
+  name,
+  image,
+  label,
+  tone,
+  dimmed = false,
+  vaulted = false,
+  pressed,
+  onClick,
+}: {
+  name: string;
+  image: string | null;
+  label?: string;
+  tone: keyof typeof TILE_FRAME;
+  dimmed?: boolean;
+  vaulted?: boolean;
+  pressed?: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
-      onClick={onOpen}
-      aria-label={`${item.name}. ${progress.label}`}
-      className={`relative aspect-square w-full overflow-hidden rounded-xl border bg-ink text-left ${TILE_FRAME[progress.tone]}`}
+      onClick={onClick}
+      aria-pressed={pressed}
+      aria-label={label ? `${name}. ${label}` : name}
+      className={`relative aspect-square w-full overflow-hidden rounded-xl border bg-ink text-left ${TILE_FRAME[tone]}`}
     >
-      {item.image && (
+      {image && (
         <img
-          src={item.image}
+          src={image}
           alt=""
           loading="lazy"
           decoding="async"
-          className={`absolute inset-0 h-full w-full object-contain p-2 ${progress.tone === "none" ? "opacity-45" : ""}`}
+          className={`absolute inset-0 h-full w-full object-contain p-2 ${dimmed ? "opacity-45" : ""}`}
         />
       )}
-      <span className={`absolute top-1.5 left-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${TILE_BADGE[progress.tone]}`}>
-        {progress.label}
-      </span>
+      {label && (
+        <span className={`absolute top-1.5 left-1.5 max-w-[calc(100%-0.75rem)] truncate rounded-full px-1.5 py-0.5 text-[10px] font-medium ${TILE_BADGE[tone]}`}>
+          {label}
+        </span>
+      )}
       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/85 to-transparent px-2 pt-6 pb-1.5">
-        <span className="block truncate text-xs font-medium text-bone">{item.name}</span>
-        {item.vaulted && <span className="text-[10px] text-clay">En la bóveda</span>}
+        <span className="block truncate text-xs font-medium text-bone">{name}</span>
+        {vaulted && <span className="block truncate text-[10px] text-clay">En la bóveda</span>}
       </span>
     </button>
+  );
+}
+
+export function ItemTile({ item, onOpen }: { item: ItemSummary; onOpen: () => void }) {
+  const progress = tileProgress(item);
+  return (
+    <GearCard
+      name={item.name}
+      image={item.image}
+      label={progress.label}
+      tone={progress.tone}
+      dimmed={progress.tone === "none"}
+      vaulted={item.vaulted}
+      onClick={onOpen}
+    />
   );
 }
 

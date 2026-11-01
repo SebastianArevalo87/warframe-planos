@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchItemIndex, type MasteryRow } from "./lib/catalogRemote.ts";
 import { masteryXp } from "./lib/mastery.ts";
 import { MasteryMark } from "./MasteryBadge.tsx";
+import { GEAR_GRID, GearCard } from "./ItemCard.tsx";
 import type { ItemKind } from "./types.ts";
 
 type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "companion" | "robotic" | "archgun" | "archmelee" | "amp";
@@ -126,33 +127,20 @@ export function MasteryPage({
             </div>
           </div>
           {visible.length === 0 && <p className="mt-4 text-mute">Ningún equipo coincide.</p>}
-          <ul className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-9">
+          <ul className={`mt-4 ${GEAR_GRID}`}>
             {visible.map((row) => {
               const owned = done.has(row.id);
               return (
                 <li key={row.id}>
-                  <button
-                    type="button"
-                    aria-pressed={owned}
+                  <GearCard
+                    name={row.name}
+                    image={row.image}
+                    label={owned ? "Rango máximo" : undefined}
+                    tone={owned ? "built" : "none"}
+                    dimmed={!owned}
+                    pressed={owned}
                     onClick={() => onToggle(row.id)}
-                    className={`flex h-full w-full flex-col overflow-hidden rounded-lg border bg-ink text-left ${owned ? "border-moss/80" : "border-line"}`}
-                  >
-                    <span className="relative block aspect-square">
-                      {row.image && (
-                        <img
-                          src={row.image}
-                          alt=""
-                          loading="lazy"
-                          decoding="async"
-                          className={`absolute inset-0 h-full w-full object-contain p-1 ${owned ? "" : "opacity-40"}`}
-                        />
-                      )}
-                    </span>
-                    <span className="bg-bone px-1.5 py-1 text-ink">
-                      <span className="block truncate text-[11px] leading-tight font-medium">{row.name}</span>
-                      {owned && <span className="block truncate text-[10px] leading-tight text-moss">Rango máximo</span>}
-                    </span>
-                  </button>
+                  />
                 </li>
               );
             })}

@@ -128,9 +128,9 @@ export function Dashboard({
             ) : (
               <p className="text-sm text-mute">{worldError ? "Sin el circuito de esta semana." : "Leyendo el circuito…"}</p>
             )}
+            <CodaList gear={gear} mastered={collection.mastered} onOpen={onOpen} />
           </div>
         </div>
-        <CodaList gear={gear} mastered={collection.mastered} onOpen={onOpen} />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -364,72 +364,46 @@ function CodaList({
     };
   }, []);
 
-  const groups = [
-    { kind: "primary" as const, label: "Primaria" },
-    { kind: "secondary" as const, label: "Secundaria" },
-    { kind: "melee" as const, label: "Cuerpo a cuerpo" },
-  ];
+  const weapons = shop
+    ? [...shop.weapons].sort((a, b) => (b.percent ?? -1) - (a.percent ?? -1) || a.name.localeCompare(b.name, "es"))
+    : [];
+  const hint = shop
+    ? `Lote ${shop.batch} · ${formatTimeLeft(new Date(shop.until).toISOString())}`
+    : "Leyendo…";
 
   return (
-    <div className="mt-6">
-      <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
-        <h3 className="text-sm font-medium text-bone">Coda de Eleanor</h3>
-        {shop && (
-          <span className="text-sm text-mute">
-            Lote {shop.batch} · cambia en {formatTimeLeft(new Date(shop.until).toISOString())}
-          </span>
-        )}
-      </div>
-      <p className="text-xs text-mute">A la venta con células de corazón vivas. El elemento y el porcentaje los anotan los jugadores.</p>
-      {!shop && <p className="mt-3 text-sm text-mute">Leyendo la tienda…</p>}
-      {shop && !shop.reported && <p className="mt-3 text-sm text-mute">No pude leer el elemento de esta rotación.</p>}
-      {shop && (
-        <div className="mt-3 grid gap-4 lg:grid-cols-3">
-          {groups.map((group) => (
-            <div key={group.kind}>
-              <p className="text-[11px] font-medium tracking-[0.14em] text-gold uppercase">{group.label}</p>
-              <ul className="mt-2 flex flex-col gap-1.5">
-                {shop.weapons
-                  .filter((weapon) => weapon.kind === group.kind)
-                  .map((weapon) => {
-                    const item = byName.get(weapon.name.toLowerCase());
-                    const label = names.item(item?.id ?? "", weapon.name);
-                    const owned = item ? done.has(item.id) : false;
-                    const bonus = weapon.element && weapon.percent != null
-                      ? `${codaElement(weapon.element)} ${weapon.percent.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
-                      : "Sin porcentaje";
-                    const body = (
-                      <>
-                        {item?.image && <img src={item.image} alt="" className="h-8 w-8 shrink-0 rounded-lg bg-panel object-contain" />}
-                        <span className="min-w-0 flex-1">
-                          <span className={`block truncate text-sm ${owned ? "text-moss" : "text-bone"}`}>{label}</span>
-                          <span className="text-xs">
-                            {owned && <span className="text-mute">Dominado · </span>}
-                            <span className={weapon.element ? "text-gold" : "text-mute"}>{bonus}</span>
-                          </span>
-                        </span>
-                      </>
-                    );
-                    return (
-                      <li key={weapon.name}>
-                        {item ? (
-                          <button
-                            type="button"
-                            onClick={() => onOpen(item.id)}
-                            className="flex w-full items-center gap-2 rounded-xl border border-line bg-ink px-2 py-1.5 text-left hover:border-gold"
-                          >
-                            {body}
-                          </button>
-                        ) : (
-                          <div className="flex items-center gap-2 rounded-xl border border-line bg-ink px-2 py-1.5">{body}</div>
-                        )}
-                      </li>
-                    );
-                  })}
-              </ul>
-            </div>
-          ))}
-        </div>
+    <div className="rounded-xl border border-line bg-panel px-3 py-2">
+      <p className="text-[11px] font-medium tracking-[0.14em] text-gold uppercase">
+        Coda
+        <span className="ml-2 font-normal tracking-normal text-mute normal-case">{hint}</span>
+      </p>
+      {weapons.length === 0 ? (
+        <p className="mt-2 text-sm text-mute">Leyendo la tienda…</p>
+      ) : (
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {weapons.map((weapon) => {
+            const item = byName.get(weapon.name.toLowerCase());
+            const label = names.item(item?.id ?? "", weapon.name);
+            const owned = item ? done.has(item.id) : false;
+            const percent = weapon.percent == null
+              ? ""
+              : weapon.percent.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+            const bonus = weapon.element && percent ? `${codaElement(weapon.element)} ${percent}%` : percent ? `${percent}%` : "";
+            const text = bonus ? `${label} · ${bonus}` : label;
+            const className = owned
+              ? "rounded-full border border-moss/40 px-2.5 py-1 text-sm text-moss"
+              : "rounded-full border border-line px-2.5 py-1 text-sm text-bone hover:border-gold";
+            const note = owned ? "dominado" : "sin dominar";
+            if (!item) return <li key={weapon.name} className={className}>{text}</li>;
+            return (
+              <li key={weapon.name}>
+                <button type="button" onClick={() => onOpen(item.id)} className={className} aria-label={`${text}, ${note}`}>
+                  {text}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );

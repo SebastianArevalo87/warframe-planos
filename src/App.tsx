@@ -17,7 +17,7 @@ import { RelicModal } from "./RelicModal.tsx";
 import { Sheet } from "./Sheet.tsx";
 import { Gate, LoginScreen } from "./Login.tsx";
 
-const KINDS: KindFilter[] = ["all", "weapon", "warframe", "primary", "secondary", "melee", "archwing", "companion"];
+const KINDS: KindFilter[] = ["all", "weapon", "warframe", "primary", "secondary", "melee", "archwing", "archgun", "archmelee", "companion", "robotic", "amp"];
 const STATUSES: StatusFilter[] = ["missing", "ready", "built", "almost", "owned", "all"];
 const LISTING_STATUSES: StatusFilter[] = ["ready", "built", "almost", "owned"];
 

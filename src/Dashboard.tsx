@@ -62,12 +62,16 @@ export function Dashboard({
         />
         <SmallMeter label="Cuerpo a cuerpo" value={stats.melee} total={stats.meleeTotal} onClick={() => onSearch("melee", "built")} />
         <SmallMeter label="Archwing" value={stats.archwing} total={stats.archwingTotal} onClick={() => onSearch("archwing", "built")} />
+        <SmallMeter label="Archcañón" value={stats.archgun} total={stats.archgunTotal} onClick={() => onSearch("archgun", "built")} />
+        <SmallMeter label="Archmelee" value={stats.archmelee} total={stats.archmeleeTotal} onClick={() => onSearch("archmelee", "built")} />
         <SmallMeter
           label="Compañero"
           value={stats.companion}
           total={stats.companionTotal}
           onClick={() => onSearch("companion", "built")}
         />
+        <SmallMeter label="Robótico" value={stats.robotic} total={stats.roboticTotal} onClick={() => onSearch("robotic", "built")} />
+        <SmallMeter label="Amps" value={stats.amp} total={stats.ampTotal} onClick={() => onSearch("amp", "built")} />
       </section>
 
       <section className="order-5 col-span-2 grid grid-cols-3 gap-2 lg:order-6 lg:col-span-6 xl:col-span-3">

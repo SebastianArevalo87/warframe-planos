@@ -14,6 +14,7 @@ export type RawItem = {
   uniqueName?: string;
   category?: string;
   type?: string;
+  productCategory?: string;
   masterable?: boolean;
   vaulted?: boolean;
   imageName?: string;
@@ -42,10 +43,20 @@ const DATA_FILES: Array<{ file: string; kind: ItemKind }> = [
   { file: "Archwing", kind: "archwing" },
   { file: "Arch-Gun", kind: "archgun" },
   { file: "Arch-Melee", kind: "archmelee" },
-  { file: "Sentinels", kind: "companion" },
+  { file: "Sentinels", kind: "robotic" },
   { file: "Pets", kind: "companion" },
-  { file: "SentinelWeapons", kind: "companion" },
+  { file: "SentinelWeapons", kind: "robotic" },
 ];
+
+function isAmpPrism(raw: RawItem) {
+  return raw.type === "Amp" && /\bprism\b/i.test(raw.name ?? "");
+}
+
+function kindOf(raw: RawItem, fallback: ItemKind): ItemKind {
+  if (raw.type === "Necramech") return "necramech";
+  if (raw.productCategory === "OperatorAmps" || isAmpPrism(raw)) return "amp";
+  return fallback;
+}
 
 export type SourceGroup = { kind: ItemKind; items: RawItem[] };
 const DATA_BASE = "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json";
@@ -75,13 +86,18 @@ export async function fetchSource(): Promise<{
   const version = commit.sha?.slice(0, 7) ?? "github";
 
   const [groups, components, recipes, materialIndex, relics] = await Promise.all([
-    Promise.all(
-      DATA_FILES.map(async (source) => {
+    Promise.all([
+      ...DATA_FILES.map(async (source) => {
         const response = await fetch(`${DATA_BASE}/${source.file}.json`);
         if (!response.ok) throw new Error("catalog");
         return { kind: source.kind, items: (await response.json()) as RawItem[] };
       }),
-    ),
+      fetch(`${DATA_BASE}/Misc.json`).then(async (response) => {
+        if (!response.ok) throw new Error("catalog");
+        const items = (await response.json()) as RawItem[];
+        return { kind: "amp" as const, items: items.filter(isAmpPrism) };
+      }),
+    ]),
     fetch(`${DATA_BASE}/Components.json`).then(async (response) => {
       if (!response.ok) throw new Error("catalog");
       return (await response.json()) as RawComponent[];
@@ -143,6 +159,7 @@ const PART_LABELS: Record<string, string> = {
   Chassis: "Chasis",
   Neuroptics: "Neurópticas",
   Systems: "Sistemas",
+  Prism: "Prisma",
   Wings: "Alas",
   Harness: "Arnés",
   Barrel: "Cañón",
@@ -433,8 +450,9 @@ export function buildCatalog(
     for (const raw of group.items) {
       const name = raw.name?.trim();
       const id = raw.uniqueName?.trim();
-      const kind = raw.type === "Necramech" ? "necramech" : group.kind;
-      if (!name || !id || !kind || seen.has(id) || raw.masterable === false) continue;
+      const kind = kindOf(raw, group.kind);
+      if (!name || !id || !kind || seen.has(id)) continue;
+      if (!isAmpPrism(raw) && raw.masterable === false) continue;
       if (/\bexalted\b/i.test(name)) continue;
       seen.add(id);
 

@@ -23,8 +23,16 @@ export type DashboardStats = {
   meleeTotal: number;
   archwing: number;
   archwingTotal: number;
+  archgun: number;
+  archgunTotal: number;
+  archmelee: number;
+  archmeleeTotal: number;
   companion: number;
   companionTotal: number;
+  robotic: number;
+  roboticTotal: number;
+  amp: number;
+  ampTotal: number;
   ready: number;
   almost: number;
   ownedParts: number;
@@ -63,8 +71,16 @@ const emptyStats = (): DashboardStats => ({
   meleeTotal: 0,
   archwing: 0,
   archwingTotal: 0,
+  archgun: 0,
+  archgunTotal: 0,
+  archmelee: 0,
+  archmeleeTotal: 0,
   companion: 0,
   companionTotal: 0,
+  robotic: 0,
+  roboticTotal: 0,
+  amp: 0,
+  ampTotal: 0,
   ready: 0,
   almost: 0,
   ownedParts: 0,
@@ -115,8 +131,16 @@ function asStats(value: unknown): DashboardStats {
     meleeTotal: Number(stats.meleeTotal) || 0,
     archwing: Number(stats.archwing) || 0,
     archwingTotal: Number(stats.archwingTotal) || 0,
+    archgun: Number(stats.archgun) || 0,
+    archgunTotal: Number(stats.archgunTotal) || 0,
+    archmelee: Number(stats.archmelee) || 0,
+    archmeleeTotal: Number(stats.archmeleeTotal) || 0,
     companion: Number(stats.companion) || 0,
     companionTotal: Number(stats.companionTotal) || 0,
+    robotic: Number(stats.robotic) || 0,
+    roboticTotal: Number(stats.roboticTotal) || 0,
+    amp: Number(stats.amp) || 0,
+    ampTotal: Number(stats.ampTotal) || 0,
     ready: Number(stats.ready) || 0,
     almost: Number(stats.almost) || 0,
     ownedParts: Number(stats.ownedParts) || 0,

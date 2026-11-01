@@ -7,7 +7,9 @@ export type ItemKind =
   | "archgun"
   | "archmelee"
   | "necramech"
-  | "companion";
+  | "companion"
+  | "robotic"
+  | "amp";
 
 export const KIND_LABEL: Record<ItemKind, string> = {
   warframe: "Warframe",
@@ -19,6 +21,8 @@ export const KIND_LABEL: Record<ItemKind, string> = {
   archmelee: "Arch-melee",
   necramech: "Necramech",
   companion: "Compañero",
+  robotic: "Robótico",
+  amp: "Amp",
 };
 
 export function isItemKind(value: unknown): value is ItemKind {
@@ -28,7 +32,7 @@ export function isItemKind(value: unknown): value is ItemKind {
 export function matchesKind(kind: ItemKind, filter: KindFilter): boolean {
   if (filter === "all") return true;
   if (filter === "weapon") return kind === "primary" || kind === "secondary" || kind === "melee";
-  if (filter === "archwing") return kind === "archwing" || kind === "archgun" || kind === "archmelee" || kind === "necramech";
+  if (filter === "archwing") return kind === "archwing" || kind === "necramech";
   return kind === filter;
 }
 

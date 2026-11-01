@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchLoadIndex, type LoadRow } from "./lib/catalogRemote.ts";
 import { KIND_LABEL } from "./types.ts";
 
-type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "companion" | "varios";
+type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "archgun" | "archmelee" | "companion" | "robotic" | "amp" | "varios";
 
 const GROUPS: Array<{ id: GroupId; label: string }> = [
   { id: "warframe", label: "Warframe" },
@@ -10,7 +10,11 @@ const GROUPS: Array<{ id: GroupId; label: string }> = [
   { id: "secondary", label: "Secundaria" },
   { id: "melee", label: "Cuerpo a cuerpo" },
   { id: "archwing", label: "Archwing" },
+  { id: "archgun", label: "Archcañón" },
+  { id: "archmelee", label: "Archmelee" },
   { id: "companion", label: "Compañero" },
+  { id: "robotic", label: "Robótico" },
+  { id: "amp", label: "Amps" },
   { id: "varios", label: "Varios" },
 ];
 
@@ -63,7 +67,7 @@ function fold(value: string) {
 
 function inGroup(row: LoadRow, group: GroupId) {
   if (group === "varios") return row.short !== "Plano";
-  if (group === "archwing") return row.kind === "archwing" || row.kind === "archgun" || row.kind === "archmelee" || row.kind === "necramech";
+  if (group === "archwing") return row.kind === "archwing" || row.kind === "necramech";
   return row.kind === group;
 }
 

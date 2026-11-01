@@ -8,7 +8,11 @@ const KIND_OPTIONS: Array<{ id: KindFilter; label: string }> = [
   { id: "secondary", label: "Secundarias" },
   { id: "melee", label: "Cuerpo a cuerpo" },
   { id: "archwing", label: "Archwing" },
+  { id: "archgun", label: "Archcañón" },
+  { id: "archmelee", label: "Archmelee" },
   { id: "companion", label: "Compañero" },
+  { id: "robotic", label: "Robótico" },
+  { id: "amp", label: "Amps" },
 ];
 
 const STATUS_OPTIONS: Array<{ id: StatusFilter; label: string }> = [

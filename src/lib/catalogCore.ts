@@ -455,6 +455,7 @@ export function buildCatalog(
       if (!name || !id || !kind || seen.has(id)) continue;
       if (!isAmpPrism(raw) && raw.masterable === false) continue;
       if (/\bexalted\b/i.test(name)) continue;
+      if (/doppelganger/i.test(id)) continue;
       seen.add(id);
 
       const parts: CatalogPart[] = [];

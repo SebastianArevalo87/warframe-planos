@@ -1,4 +1,4 @@
-import type { Catalog, CatalogItem, CatalogPart, CraftMaterial, ItemKind, PartRelic, RelicRarity } from "../types.ts";
+import { isItemKind, type Catalog, type CatalogItem, type CatalogPart, type CraftMaterial, type ItemKind, type PartRelic, type RelicRarity } from "../types.ts";
 import { supabase } from "./supabase.ts";
 
 export type DashboardHighlight = {
@@ -21,6 +21,10 @@ export type DashboardStats = {
   secondaryTotal: number;
   melee: number;
   meleeTotal: number;
+  archwing: number;
+  archwingTotal: number;
+  companion: number;
+  companionTotal: number;
   ready: number;
   almost: number;
   ownedParts: number;
@@ -57,6 +61,10 @@ const emptyStats = (): DashboardStats => ({
   secondaryTotal: 0,
   melee: 0,
   meleeTotal: 0,
+  archwing: 0,
+  archwingTotal: 0,
+  companion: 0,
+  companionTotal: 0,
   ready: 0,
   almost: 0,
   ownedParts: 0,
@@ -77,7 +85,7 @@ function asHighlights(value: unknown): DashboardHighlight[] {
     const row = entry as Partial<DashboardHighlight>;
     if (typeof row.id !== "string" || typeof row.name !== "string") return [];
     const kind = row.kind;
-    if (kind !== "warframe" && kind !== "primary" && kind !== "secondary" && kind !== "melee") return [];
+    if (!isItemKind(kind)) return [];
     return [
       {
         id: row.id,
@@ -105,6 +113,10 @@ function asStats(value: unknown): DashboardStats {
     secondaryTotal: Number(stats.secondaryTotal) || 0,
     melee: Number(stats.melee) || 0,
     meleeTotal: Number(stats.meleeTotal) || 0,
+    archwing: Number(stats.archwing) || 0,
+    archwingTotal: Number(stats.archwingTotal) || 0,
+    companion: Number(stats.companion) || 0,
+    companionTotal: Number(stats.companionTotal) || 0,
     ready: Number(stats.ready) || 0,
     almost: Number(stats.almost) || 0,
     ownedParts: Number(stats.ownedParts) || 0,
@@ -243,7 +255,7 @@ function asLoadRow(value: unknown): LoadRow | null {
   if (!parent || typeof parent !== "object") return null;
   const item = parent as { name?: unknown; image?: unknown; kind?: unknown };
   const kind = item.kind;
-  if (kind !== "warframe" && kind !== "primary" && kind !== "secondary" && kind !== "melee") return null;
+  if (!isItemKind(kind)) return null;
   if (typeof row.id !== "string" || typeof row.short !== "string" || typeof row.title !== "string") return null;
   if (typeof row.item_id !== "string" || typeof item.name !== "string" || !item.name) return null;
   return {
@@ -300,7 +312,7 @@ function asSellRows(value: unknown): SellRow[] {
     const row = entry as Partial<SellRow>;
     if (typeof row.id !== "string" || typeof row.name !== "string") return [];
     const kind = row.kind;
-    if (kind !== "warframe" && kind !== "primary" && kind !== "secondary" && kind !== "melee") return [];
+    if (!isItemKind(kind)) return [];
     const parts = Array.isArray(row.parts)
       ? row.parts.flatMap((part) => {
           if (!part || typeof part !== "object") return [];

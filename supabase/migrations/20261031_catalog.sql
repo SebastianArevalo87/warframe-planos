@@ -1,7 +1,7 @@
 create table if not exists public.catalog_items (
   id text primary key,
   name text not null,
-  kind text not null check (kind in ('warframe', 'primary', 'secondary', 'melee')),
+  kind text not null check (kind in ('warframe', 'primary', 'secondary', 'melee', 'archwing', 'archgun', 'archmelee', 'companion')),
   vaulted boolean not null default false,
   image text,
   tradable boolean not null default false,
@@ -150,14 +150,18 @@ begin
   select jsonb_build_object(
     'frames', count(*) filter (where kind = 'warframe' and complete),
     'frameTotal', count(*) filter (where kind = 'warframe'),
-    'weapons', count(*) filter (where kind <> 'warframe' and complete),
-    'weaponTotal', count(*) filter (where kind <> 'warframe'),
+    'weapons', count(*) filter (where kind in ('primary', 'secondary', 'melee') and complete),
+    'weaponTotal', count(*) filter (where kind in ('primary', 'secondary', 'melee')),
     'primary', count(*) filter (where kind = 'primary' and complete),
     'primaryTotal', count(*) filter (where kind = 'primary'),
     'secondary', count(*) filter (where kind = 'secondary' and complete),
     'secondaryTotal', count(*) filter (where kind = 'secondary'),
     'melee', count(*) filter (where kind = 'melee' and complete),
     'meleeTotal', count(*) filter (where kind = 'melee'),
+    'archwing', count(*) filter (where kind in ('archwing', 'archgun', 'archmelee') and complete),
+    'archwingTotal', count(*) filter (where kind in ('archwing', 'archgun', 'archmelee')),
+    'companion', count(*) filter (where kind = 'companion' and complete),
+    'companionTotal', count(*) filter (where kind = 'companion'),
     'ready', count(*) filter (where ready),
     'almost', count(*) filter (where almost),
     'ownedParts', (select count(*) from public.catalog_parts cp where cp.id = any(owned_parts)),
@@ -356,7 +360,8 @@ begin
     cross join owned o
     left join public.catalog_parts p on p.item_id = i.id
     where coalesce(p_kind, 'all') = 'all'
-      or (p_kind = 'weapon' and i.kind <> 'warframe')
+      or (p_kind = 'weapon' and i.kind in ('primary', 'secondary', 'melee'))
+      or (p_kind = 'archwing' and i.kind in ('archwing', 'archgun', 'archmelee'))
       or i.kind = p_kind
     group by i.id, o.parts, o.built, o.items
   ),
@@ -502,7 +507,7 @@ begin
     nullif(element->>'setSlug', ''),
     now()
   from jsonb_array_elements(coalesce(payload->'items', '[]'::jsonb)) as element
-  where element->>'kind' in ('warframe', 'primary', 'secondary', 'melee')
+  where element->>'kind' in ('warframe', 'primary', 'secondary', 'melee', 'archwing', 'archgun', 'archmelee', 'companion')
     and length(coalesce(element->>'id', '')) between 1 and 400
     and length(coalesce(element->>'name', '')) between 1 and 200
   on conflict (id) do update set
@@ -626,7 +631,8 @@ begin
     cross join owned o
     left join public.catalog_parts p on p.item_id = i.id
     where coalesce(p_kind, 'all') = 'all'
-      or (p_kind = 'weapon' and i.kind <> 'warframe')
+      or (p_kind = 'weapon' and i.kind in ('primary', 'secondary', 'melee'))
+      or (p_kind = 'archwing' and i.kind in ('archwing', 'archgun', 'archmelee'))
       or i.kind = p_kind
     group by i.id, i.name, o.parts, o.built, o.items
   ),

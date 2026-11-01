@@ -1,4 +1,34 @@
-export type ItemKind = "warframe" | "primary" | "secondary" | "melee";
+export type ItemKind =
+  | "warframe"
+  | "primary"
+  | "secondary"
+  | "melee"
+  | "archwing"
+  | "archgun"
+  | "archmelee"
+  | "companion";
+
+export const KIND_LABEL: Record<ItemKind, string> = {
+  warframe: "Warframe",
+  primary: "Primaria",
+  secondary: "Secundaria",
+  melee: "Cuerpo a cuerpo",
+  archwing: "Archwing",
+  archgun: "Arch-gun",
+  archmelee: "Arch-melee",
+  companion: "Compañero",
+};
+
+export function isItemKind(value: unknown): value is ItemKind {
+  return typeof value === "string" && Object.hasOwn(KIND_LABEL, value);
+}
+
+export function matchesKind(kind: ItemKind, filter: KindFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "weapon") return kind === "primary" || kind === "secondary" || kind === "melee";
+  if (filter === "archwing") return kind === "archwing" || kind === "archgun" || kind === "archmelee";
+  return kind === filter;
+}
 
 export type CraftMaterial = {
   id: string;

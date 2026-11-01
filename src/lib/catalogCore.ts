@@ -33,7 +33,20 @@ export type MarketEntry = {
   name: string;
 };
 
-const DATA_FILES = ["Warframes", "Primary", "Secondary", "Melee"];
+const DATA_FILES: Array<{ file: string; kind: ItemKind }> = [
+  { file: "Warframes", kind: "warframe" },
+  { file: "Primary", kind: "primary" },
+  { file: "Secondary", kind: "secondary" },
+  { file: "Melee", kind: "melee" },
+  { file: "Archwing", kind: "archwing" },
+  { file: "Arch-Gun", kind: "archgun" },
+  { file: "Arch-Melee", kind: "archmelee" },
+  { file: "Sentinels", kind: "companion" },
+  { file: "Pets", kind: "companion" },
+  { file: "SentinelWeapons", kind: "companion" },
+];
+
+export type SourceGroup = { kind: ItemKind; items: RawItem[] };
 const DATA_BASE = "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json";
 const RECIPES_URL = "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/senpai/ExportRecipes.json";
 const RELICS_URL = "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/senpai/ExportRelics.json";
@@ -43,7 +56,7 @@ const IMAGE_FILES = ["Misc", "Resources", "Fish", "Gear"];
 
 export async function fetchSource(): Promise<{
   version: string;
-  groups: RawItem[][];
+  groups: SourceGroup[];
   components: RawComponent[];
   recipes: RecipeBook;
   images: Map<string, string>;
@@ -62,10 +75,10 @@ export async function fetchSource(): Promise<{
 
   const [groups, components, recipes, materialIndex, relics] = await Promise.all([
     Promise.all(
-      DATA_FILES.map(async (file) => {
-        const response = await fetch(`${DATA_BASE}/${file}.json`);
+      DATA_FILES.map(async (source) => {
+        const response = await fetch(`${DATA_BASE}/${source.file}.json`);
         if (!response.ok) throw new Error("catalog");
-        return (await response.json()) as RawItem[];
+        return { kind: source.kind, items: (await response.json()) as RawItem[] };
       }),
     ),
     fetch(`${DATA_BASE}/Components.json`).then(async (response) => {
@@ -124,18 +137,13 @@ async function fetchMaterialImages(): Promise<{ images: Map<string, string>; nam
   return { images, names };
 }
 
-const KIND_BY_CATEGORY: Record<string, ItemKind> = {
-  Warframes: "warframe",
-  Primary: "primary",
-  Secondary: "secondary",
-  Melee: "melee",
-};
-
 const PART_LABELS: Record<string, string> = {
   Blueprint: "Plano",
   Chassis: "Chasis",
   Neuroptics: "Neurópticas",
   Systems: "Sistemas",
+  Wings: "Alas",
+  Harness: "Arnés",
   Barrel: "Cañón",
   Receiver: "Receptor",
   Stock: "Culata",
@@ -389,7 +397,7 @@ function indexMarket(entries: MarketEntry[]): MarketIndex {
 }
 
 export function buildCatalog(
-  groups: RawItem[][],
+  groups: SourceGroup[],
   entries: MarketEntry[],
   sourceVersion: string,
   generatedAt: string,
@@ -403,7 +411,7 @@ export function buildCatalog(
   const knownNames = new Map(names);
   const knownImages = new Map(images);
   for (const group of groups) {
-    for (const raw of group) {
+    for (const raw of group.items) {
       const id = raw.uniqueName?.trim();
       const name = raw.name?.trim();
       const image = raw.imageName?.trim();
@@ -421,10 +429,10 @@ export function buildCatalog(
   const items: CatalogItem[] = [];
 
   for (const group of groups) {
-    for (const raw of group) {
+    for (const raw of group.items) {
       const name = raw.name?.trim();
       const id = raw.uniqueName?.trim();
-      const kind = raw.category ? KIND_BY_CATEGORY[raw.category] : undefined;
+      const kind = group.kind;
       if (!name || !id || !kind || seen.has(id) || raw.masterable === false) continue;
       if (/\bexalted\b/i.test(name)) continue;
       seen.add(id);

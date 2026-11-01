@@ -1,19 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchLoadIndex, type LoadRow } from "./lib/catalogRemote.ts";
-import type { ItemKind } from "./types.ts";
+import { KIND_LABEL } from "./types.ts";
 
-const KIND_LABEL: Record<ItemKind, string> = {
-  warframe: "Warframe",
-  primary: "Primaria",
-  secondary: "Secundaria",
-  melee: "Melee",
-};
+type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "companion" | "varios";
+
+const GROUPS: Array<{ id: GroupId; label: string }> = [
+  { id: "warframe", label: "Warframe" },
+  { id: "primary", label: "Primaria" },
+  { id: "secondary", label: "Secundaria" },
+  { id: "melee", label: "Cuerpo a cuerpo" },
+  { id: "archwing", label: "Archwing" },
+  { id: "companion", label: "Compañero" },
+  { id: "varios", label: "Varios" },
+];
 
 const TYPE_ORDER = [
   "Plano",
   "Neurópticas",
   "Chasis",
   "Sistemas",
+  "Alas",
+  "Arnés",
   "Cápsula",
   "Carcasa",
   "Motor",
@@ -54,6 +61,23 @@ function fold(value: string) {
     .replace(/\p{M}/gu, "");
 }
 
+function inGroup(row: LoadRow, group: GroupId) {
+  if (group === "varios") return row.short !== "Plano";
+  if (group === "archwing") return row.kind === "archwing" || row.kind === "archgun" || row.kind === "archmelee";
+  return row.kind === group;
+}
+
+function compareTypes(a: string, b: string) {
+  const aOrder = TYPE_ORDER.indexOf(a);
+  const bOrder = TYPE_ORDER.indexOf(b);
+  if (aOrder !== -1 || bOrder !== -1) {
+    if (aOrder === -1) return 1;
+    if (bOrder === -1) return -1;
+    return aOrder - bOrder;
+  }
+  return a.localeCompare(b, "es");
+}
+
 export function LoadPage({
   qty,
   onToggle,
@@ -66,7 +90,8 @@ export function LoadPage({
   const [rows, setRows] = useState<LoadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [type, setType] = useState("Chasis");
+  const [group, setGroup] = useState<GroupId>("warframe");
+  const [type, setType] = useState("Plano");
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -74,9 +99,7 @@ export function LoadPage({
     setLoading(true);
     void fetchLoadIndex()
       .then((next) => {
-        if (cancelled) return;
-        setRows(next);
-        setType((current) => (next.some((row) => row.short === current) ? current : (next[0]?.short ?? current)));
+        if (!cancelled) setRows(next);
       })
       .catch(() => {
         if (!cancelled) setError("No pude abrir las piezas.");
@@ -89,9 +112,11 @@ export function LoadPage({
     };
   }, []);
 
+  const grouped = useMemo(() => rows.filter((row) => inGroup(row, group)), [group, rows]);
+
   const types = useMemo(() => {
     const counts = new Map<string, { total: number; owned: number }>();
-    for (const row of rows) {
+    for (const row of grouped) {
       const current = counts.get(row.short) ?? { total: 0, owned: 0 };
       current.total += 1;
       if ((qty[row.partId] ?? 0) > 0) current.owned += 1;
@@ -99,44 +124,68 @@ export function LoadPage({
     }
     return [...counts.entries()]
       .map(([short, count]) => ({ short, ...count }))
-      .sort((a, b) => {
-        const aOrder = TYPE_ORDER.indexOf(a.short);
-        const bOrder = TYPE_ORDER.indexOf(b.short);
-        if (aOrder !== -1 || bOrder !== -1) {
-          if (aOrder === -1) return 1;
-          if (bOrder === -1) return -1;
-          return aOrder - bOrder;
-        }
-        return a.short.localeCompare(b.short, "es");
-      });
-  }, [qty, rows]);
+      .sort((a, b) => compareTypes(a.short, b.short));
+  }, [grouped, qty]);
+
+  const activeType = types.some((entry) => entry.short === type) ? type : (types[0]?.short ?? "");
+
+  const groups = useMemo(
+    () =>
+      GROUPS.map((entry) => {
+        const matching = rows.filter((row) => inGroup(row, entry.id));
+        const owned = matching.filter((row) => (qty[row.partId] ?? 0) > 0).length;
+        return { ...entry, owned, total: matching.length };
+      }),
+    [qty, rows],
+  );
 
   const needle = fold(query.trim());
-  const visible = rows
-    .filter((row) => row.short === type && (needle === "" || fold(row.itemName).includes(needle) || fold(row.title).includes(needle)))
+  const visible = grouped
+    .filter((row) => row.short === activeType && (needle === "" || fold(row.itemName).includes(needle) || fold(row.title).includes(needle)))
     .sort((a, b) => a.itemName.localeCompare(b.itemName, "es") || a.title.localeCompare(b.title, "es"));
   const ownedVisible = visible.filter((row) => (qty[row.partId] ?? 0) > 0).length;
 
   return (
     <div>
       <p className="text-sm text-mute">
-        Elige el grupo que estás viendo en el inventario. Sirve para warframes y para armas, y marca el mismo «Lo tengo» de la ficha.
+        Es más rápido si sigues las pestañas de la fundición, de izquierda a derecha: Warframe, Primaria, Secundaria, Cuerpo a cuerpo, Archwing y Compañero. Dentro de cada una, elige el tipo de pieza. Varios junta las que no son el plano principal, como cuando ahí ordenas por tipo.
       </p>
       {error && <p className="mt-3 text-clay">{error}</p>}
       {loading && <p className="mt-4 text-mute">Abriendo las piezas…</p>}
       {!loading && !error && (
         <>
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Tipo de pieza">
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Pestaña de la fundición">
+            {groups.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                role="tab"
+                aria-selected={entry.id === group}
+                onClick={() => setGroup(entry.id)}
+                className={
+                  entry.id === group
+                    ? "shrink-0 rounded-full bg-bone px-3 py-1.5 text-sm text-ink"
+                    : "shrink-0 rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"
+                }
+              >
+                {entry.label}
+                <span className="ml-1 tabular-nums opacity-70">
+                  {entry.owned}/{entry.total}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Tipo de pieza">
             {types.map((entry) => (
               <button
                 key={entry.short}
                 type="button"
                 role="tab"
-                aria-selected={entry.short === type}
+                aria-selected={entry.short === activeType}
                 onClick={() => setType(entry.short)}
                 className={
-                  entry.short === type
-                    ? "shrink-0 rounded-full bg-bone px-3 py-1.5 text-sm text-ink"
+                  entry.short === activeType
+                    ? "shrink-0 rounded-full bg-gold/20 px-3 py-1.5 text-sm text-gold"
                     : "shrink-0 rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"
                 }
               >
@@ -180,6 +229,7 @@ export function LoadPage({
                       <span className="block truncate text-sm text-bone">{row.itemName}</span>
                       <span className="block truncate text-xs text-mute">
                         {KIND_LABEL[row.kind]}
+                        {row.short !== "Plano" ? ` · ${row.short}` : ""}
                         {amount > 1 ? ` · ${amount}` : ""}
                       </span>
                     </button>

@@ -1,15 +1,8 @@
 import { useMemo, useState } from "react";
 import type { PriceQuote } from "./lib/market.ts";
 import type { SellRow } from "./lib/catalogRemote.ts";
-import type { KindFilter } from "./types.ts";
+import { KIND_LABEL, matchesKind, type KindFilter } from "./types.ts";
 import { FilterBar } from "./FilterBar.tsx";
-
-const KIND_LABEL = {
-  warframe: "Warframe",
-  primary: "Primaria",
-  secondary: "Secundaria",
-  melee: "Melee",
-} as const;
 
 export function SellPage({
   rows,
@@ -113,8 +106,7 @@ export function SellPage({
 function filterRows(rows: SellRow[], query: string, kind: KindFilter) {
   const text = query.trim().toLowerCase();
   return rows.filter((row) => {
-    if (kind === "weapon" && row.kind === "warframe") return false;
-    if (kind !== "all" && kind !== "weapon" && row.kind !== kind) return false;
+    if (!matchesKind(row.kind, kind)) return false;
     if (!text) return true;
     return row.name.toLowerCase().includes(text) || row.parts.some((part) => part.title.toLowerCase().includes(text));
   });

@@ -1,16 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ItemSummary } from "./lib/catalogRemote.ts";
-import type { CatalogItem, CatalogPart } from "./types.ts";
+import { KIND_LABEL, type CatalogItem, type CatalogPart } from "./types.ts";
 import { fetchPrice, fetchPrices, marketItemUrl, type PriceQuote } from "./lib/market.ts";
 import { sumMaterials } from "./lib/materials.ts";
 import { MaterialList, MaterialTotals } from "./MaterialTotals.tsx";
-
-const KIND_LABEL = {
-  warframe: "Warframe",
-  primary: "Primaria",
-  secondary: "Secundaria",
-  melee: "Melee",
-} as const;
 
 type ItemCardProps = {
   item: CatalogItem;

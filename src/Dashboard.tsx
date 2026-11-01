@@ -1,12 +1,5 @@
 import type { DashboardHighlight, DashboardStats } from "./lib/catalogRemote.ts";
-import type { KindFilter, StatusFilter } from "./types.ts";
-
-const KIND_LABEL = {
-  warframe: "Warframe",
-  primary: "Primaria",
-  secondary: "Secundaria",
-  melee: "Melee",
-} as const;
+import { KIND_LABEL, type KindFilter, type StatusFilter } from "./types.ts";
 
 export function Dashboard({
   stats,
@@ -59,7 +52,7 @@ export function Dashboard({
         <SellCard copies={stats.sellCopies} items={stats.sellItemCount} onClick={onSell} />
       </div>
 
-      <section className="order-4 col-span-2 grid grid-cols-3 gap-2 lg:order-5 lg:col-span-6 xl:col-span-3">
+      <section className="order-4 col-span-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:order-5 lg:col-span-6 lg:grid-cols-5">
         <SmallMeter label="Primarias" value={stats.primary} total={stats.primaryTotal} onClick={() => onSearch("primary", "built")} />
         <SmallMeter
           label="Secundarias"
@@ -67,7 +60,14 @@ export function Dashboard({
           total={stats.secondaryTotal}
           onClick={() => onSearch("secondary", "built")}
         />
-        <SmallMeter label="Melee" value={stats.melee} total={stats.meleeTotal} onClick={() => onSearch("melee", "built")} />
+        <SmallMeter label="Cuerpo a cuerpo" value={stats.melee} total={stats.meleeTotal} onClick={() => onSearch("melee", "built")} />
+        <SmallMeter label="Archwing" value={stats.archwing} total={stats.archwingTotal} onClick={() => onSearch("archwing", "built")} />
+        <SmallMeter
+          label="Compañero"
+          value={stats.companion}
+          total={stats.companionTotal}
+          onClick={() => onSearch("companion", "built")}
+        />
       </section>
 
       <section className="order-5 col-span-2 grid grid-cols-3 gap-2 lg:order-6 lg:col-span-6 xl:col-span-3">

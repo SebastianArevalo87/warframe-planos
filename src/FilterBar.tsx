@@ -6,7 +6,9 @@ const KIND_OPTIONS: Array<{ id: KindFilter; label: string }> = [
   { id: "weapon", label: "Armas" },
   { id: "primary", label: "Primarias" },
   { id: "secondary", label: "Secundarias" },
-  { id: "melee", label: "Melee" },
+  { id: "melee", label: "Cuerpo a cuerpo" },
+  { id: "archwing", label: "Archwing" },
+  { id: "companion", label: "Compañero" },
 ];
 
 const STATUS_OPTIONS: Array<{ id: StatusFilter; label: string }> = [

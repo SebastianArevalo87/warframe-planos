@@ -3,6 +3,7 @@ import type { PriceQuote } from "./lib/market.ts";
 import type { SellRow } from "./lib/catalogRemote.ts";
 import { KIND_LABEL, matchesKind, type KindFilter } from "./types.ts";
 import { FilterBar } from "./FilterBar.tsx";
+import { useNames } from "./Locale.tsx";
 
 export function SellPage({
   rows,
@@ -21,7 +22,8 @@ export function SellPage({
 }) {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<KindFilter>("all");
-  const visible = useMemo(() => filterRows(rows, query, kind), [rows, query, kind]);
+  const names = useNames();
+  const visible = useMemo(() => filterRows(rows, query, kind, names), [rows, query, kind, names]);
 
   if (loading) return <p className="text-mute">Abriendo lo que puedes vender…</p>;
   if (error) return <p className="text-clay">{error}</p>;
@@ -62,7 +64,7 @@ export function SellPage({
               {row.image && <img src={row.image} alt="" className="h-16 w-16 shrink-0 rounded-xl bg-ink object-contain" />}
               <span className="min-w-0">
                 <span className="block text-[11px] font-medium tracking-[0.16em] text-gold uppercase">{KIND_LABEL[row.kind]}</span>
-                <span className="block truncate text-lg text-bone">{row.name}</span>
+                <span className="block truncate text-lg text-bone">{names.item(row.id, row.name)}</span>
               </span>
             </button>
             <ul className="mt-3 flex flex-1 flex-col gap-2">
@@ -72,7 +74,7 @@ export function SellPage({
                 return (
                   <li key={part.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
                     <span className="min-w-0 text-bone">
-                      {part.title}
+                      {names.part(part.id, part.title, row.id, row.name)}
                       <span className="text-mute"> × {part.qty}</span>
                     </span>
                     <span className="shrink-0 text-right text-mute">
@@ -103,12 +105,17 @@ export function SellPage({
   );
 }
 
-function filterRows(rows: SellRow[], query: string, kind: KindFilter) {
+function filterRows(rows: SellRow[], query: string, kind: KindFilter, names: ReturnType<typeof useNames>) {
   const text = query.trim().toLowerCase();
   return rows.filter((row) => {
     if (!matchesKind(row.kind, kind)) return false;
     if (!text) return true;
-    return row.name.toLowerCase().includes(text) || row.parts.some((part) => part.title.toLowerCase().includes(text));
+    const item = `${row.name} ${names.item(row.id, row.name)}`.toLowerCase();
+    if (item.includes(text)) return true;
+    return row.parts.some((part) => {
+      const title = `${part.title} ${names.part(part.id, part.title, row.id, row.name)}`.toLowerCase();
+      return title.includes(text);
+    });
   });
 }
 

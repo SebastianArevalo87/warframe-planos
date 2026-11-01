@@ -1,5 +1,4 @@
 import type { AdvicePart } from "./relicAdvice.ts";
-import { gameName } from "./gameName.ts";
 import { isItemKind, type Catalog, type CatalogItem, type CatalogPart, type CraftMaterial, type ItemKind, type PartRelic, type RelicRarity } from "../types.ts";
 import { supabase } from "./supabase.ts";
 
@@ -107,7 +106,7 @@ function asHighlights(value: unknown): DashboardHighlight[] {
     return [
       {
         id: row.id,
-        name: gameName(row.name),
+        name: row.name,
         kind,
         image: typeof row.image === "string" ? row.image : null,
         missing: Number(row.missing) || 0,
@@ -185,7 +184,7 @@ export async function fetchItemList(kind: string, query: string, status: string,
   const page = data as { items?: unknown; total?: unknown };
   const items = Array.isArray(page.items) ? (page.items as ItemSummary[]) : [];
   return {
-    items: items.map((item) => (typeof item.name === "string" ? { ...item, name: gameName(item.name) } : item)),
+    items,
     total: Number(page.total) || 0,
   };
 }
@@ -198,7 +197,7 @@ function asPart(value: unknown): CatalogPart | null {
   return {
     id: part.id,
     short: typeof part.short === "string" ? part.short : part.title,
-    title: gameName(part.title),
+    title: part.title,
     english: typeof part.english === "string" ? part.english : part.title,
     tradable: part.tradable === true || slug !== null,
     slug,
@@ -324,7 +323,7 @@ function asMasteryRow(value: unknown): MasteryRow | null {
   if (typeof row.id !== "string" || typeof row.name !== "string" || !row.name || !isItemKind(row.kind)) return null;
   return {
     id: row.id,
-    name: gameName(row.name),
+    name: row.name,
     image: typeof row.image === "string" && row.image ? row.image : null,
     kind: row.kind,
   };
@@ -342,7 +341,7 @@ function asAdvicePart(value: unknown): AdvicePart | null {
     id: row.id,
     short: row.short,
     itemId: row.item_id,
-    itemName: gameName(item.name),
+    itemName: item.name,
     image: typeof item.image === "string" && item.image ? item.image : null,
     kind: item.kind,
     relics: asRelics(row.relics),
@@ -367,12 +366,12 @@ function asLoadRow(value: unknown): LoadRow | null {
   if (typeof row.item_id !== "string" || typeof item.name !== "string" || !item.name) return null;
   return {
     itemId: row.item_id,
-    itemName: gameName(item.name),
+    itemName: item.name,
     image: typeof item.image === "string" && item.image ? item.image : null,
     kind,
     partId: row.id,
     short: row.short,
-    title: gameName(row.title),
+    title: row.title,
   };
 }
 
@@ -386,7 +385,6 @@ export async function fetchItemDetail(id: string): Promise<CatalogItem | null> {
   const slug = typeof item.slug === "string" && item.slug && !item.slug.endsWith("_set") ? item.slug : null;
   return {
     ...item,
-    name: gameName(item.name),
     tradable: item.tradable === true || slug !== null,
     slug,
     setSlug: typeof item.setSlug === "string" && item.setSlug.endsWith("_set") ? item.setSlug : null,
@@ -431,7 +429,7 @@ function asSellRows(value: unknown): SellRow[] {
           return [
             {
               id: piece.id,
-              title: gameName(piece.title),
+              title: piece.title,
               slug: typeof piece.slug === "string" ? piece.slug : null,
               qty,
             },
@@ -442,7 +440,7 @@ function asSellRows(value: unknown): SellRow[] {
     return [
       {
         id: row.id,
-        name: gameName(row.name),
+        name: row.name,
         kind,
         image: typeof row.image === "string" ? row.image : null,
         setSlug: typeof row.setSlug === "string" ? row.setSlug : null,

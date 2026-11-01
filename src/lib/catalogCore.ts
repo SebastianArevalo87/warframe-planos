@@ -1,5 +1,4 @@
 import type { Catalog, CatalogItem, CatalogPart, ItemKind, PartRelic } from "../types.ts";
-import { gameName } from "./gameName.ts";
 import { indexRecipes, materialsForPart, type RawRecipe, type RecipeBook } from "./materials.ts";
 import { indexRelicDrops, relicKey, type RawRelic } from "./relics.ts";
 
@@ -450,7 +449,6 @@ export function buildCatalog(
   for (const group of groups) {
     for (const raw of group.items) {
       const name = raw.name?.trim();
-      const shown = name ? gameName(name) : "";
       const id = raw.uniqueName?.trim();
       const kind = kindOf(raw, group.kind);
       if (!name || !id || !kind || seen.has(id)) continue;
@@ -472,7 +470,7 @@ export function buildCatalog(
         parts.push({
           id: partId,
           short: spanishPart(role),
-          title: partTitle(shown, role),
+          title: partTitle(name, role),
           english: englishName(name, role),
           tradable: resolved.tradable === true || component.tradable === true || slug !== null,
           slug,
@@ -497,7 +495,7 @@ export function buildCatalog(
       const itemSlug = parts.length === 0 ? matchItemSlug(name, id, market) : null;
       items.push({
         id,
-        name: shown,
+        name,
         kind,
         vaulted: raw.vaulted === true,
         image: itemImage(raw.imageName),

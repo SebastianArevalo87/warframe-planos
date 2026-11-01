@@ -17,6 +17,8 @@ import { GEAR_GRID, ItemCard, ItemTile } from "./ItemCard.tsx";
 import { RelicModal } from "./RelicModal.tsx";
 import { Sheet } from "./Sheet.tsx";
 import { Gate, LoginScreen } from "./Login.tsx";
+import { useNames } from "./Locale.tsx";
+import { isLocale, LOCALES } from "./lib/locale.ts";
 
 const KINDS: KindFilter[] = ["all", "weapon", "warframe", "primary", "secondary", "melee", "archwing", "archgun", "archmelee", "companion", "robotic", "amp"];
 const STATUSES: StatusFilter[] = ["missing", "ready", "built", "almost", "owned", "all"];
@@ -83,6 +85,7 @@ export function App() {
     profileForm(supabaseEnabled ? { warframeAccount: "", mastery: null } : loadProfile()),
   );
   const [page, setPage] = useState<AppPage>(readPage);
+  const names = useNames();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => readFilters().status);
   const [kindFilter, setKindFilter] = useState<KindFilter>(() => readFilters().kind);
@@ -555,8 +558,25 @@ export function App() {
             <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
             <h1 className="text-3xl font-medium leading-none text-bone">Planos</h1>
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <MasteryBadge mastered={collection.mastered} />
+            <label>
+              <span className="sr-only">Idioma del juego</span>
+              <select
+                aria-label="Idioma del juego"
+                value={names.locale}
+                onChange={(event) => {
+                  if (isLocale(event.target.value)) names.setLocale(event.target.value);
+                }}
+                className="max-w-40 rounded-full border border-line bg-panel px-3 py-2 text-sm text-bone outline-none focus:border-gold"
+              >
+                {LOCALES.map((locale) => (
+                  <option key={locale.id} value={locale.id}>
+                    {locale.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div ref={accountMenuRef} className="relative">
             <button
               type="button"
@@ -722,7 +742,7 @@ export function App() {
       )}
       {openId && (
         <Sheet
-          label={openItem?.name ?? "Detalle del plano"}
+          label={openItem ? names.item(openItem.id, openItem.name) : "Detalle del plano"}
           onClose={hideItem}
           onBack={canGoBack ? () => window.history.back() : undefined}
           wide

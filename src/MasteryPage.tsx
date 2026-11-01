@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchItemIndex, type MasteryRow } from "./lib/catalogRemote.ts";
+import { useNames } from "./Locale.tsx";
 import { GEAR_GRID, GearCard } from "./ItemCard.tsx";
+import { sortLocale } from "./lib/locale.ts";
 import type { ItemKind } from "./types.ts";
 
 type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "companion" | "robotic" | "archgun" | "archmelee" | "amp";
@@ -36,6 +38,8 @@ export function MasteryPage({
   const [group, setGroup] = useState<GroupId>("warframe");
   const [query, setQuery] = useState("");
   const done = useMemo(() => new Set(mastered), [mastered]);
+  const names = useNames();
+  const ordering = sortLocale(names.locale);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,8 +71,12 @@ export function MasteryPage({
 
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const visible = rows
-    .filter((row) => inGroup(row.kind, group) && words.every((word) => row.name.toLowerCase().includes(word)))
-    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+    .filter((row) => {
+      if (!inGroup(row.kind, group)) return false;
+      const shown = names.item(row.id, row.name).toLowerCase();
+      return words.every((word) => shown.includes(word) || row.name.toLowerCase().includes(word));
+    })
+    .sort((a, b) => names.item(a.id, a.name).localeCompare(names.item(b.id, b.name), ordering));
   const ownedVisible = visible.filter((row) => done.has(row.id)).length;
 
   return (
@@ -116,7 +124,7 @@ export function MasteryPage({
               return (
                 <li key={row.id}>
                   <GearCard
-                    name={row.name}
+                    name={names.item(row.id, row.name)}
                     image={row.image}
                     label={owned ? "Rango máximo" : undefined}
                     tone={owned ? "built" : "none"}

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchLoadIndex, type LoadRow } from "./lib/catalogRemote.ts";
+import { useNames } from "./Locale.tsx";
 import { MasteryPage } from "./MasteryPage.tsx";
+import { sortLocale } from "./lib/locale.ts";
 import { KIND_LABEL } from "./types.ts";
 
 type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "archgun" | "archmelee" | "companion" | "robotic" | "amp" | "varios";
@@ -84,8 +86,10 @@ function compareTypes(a: string, b: string) {
 }
 
 function letterOf(name: string) {
-  const letter = fold(name).charAt(0).toUpperCase();
-  return /[A-Z]/.test(letter) ? letter : "#";
+  const letter = name.trim().charAt(0).toLocaleUpperCase();
+  if (!letter) return "#";
+  const folded = fold(letter);
+  return /[A-Z]/.test(folded) ? folded : letter;
 }
 
 export function LoadPage({
@@ -108,6 +112,8 @@ export function LoadPage({
   const [type, setType] = useState("Plano");
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"parts" | "mastered">(window.location.hash === "#dominados" ? "mastered" : "parts");
+  const names = useNames();
+  const ordering = sortLocale(names.locale);
 
   useEffect(() => {
     let cancelled = false;
@@ -158,15 +164,15 @@ export function LoadPage({
   const visible = grouped
     .filter((row) => {
       if (row.short !== activeType) return false;
-      const haystack = `${fold(row.itemName)} ${fold(row.title)}`;
+      const haystack = `${fold(row.itemName)} ${fold(names.item(row.itemId, row.itemName))} ${fold(row.title)} ${fold(names.part(row.partId, row.title, row.itemId, row.itemName))}`;
       return words.every((word) => haystack.includes(word));
     })
-    .sort((a, b) => a.itemName.localeCompare(b.itemName, "es") || a.title.localeCompare(b.title, "es"));
+    .sort((a, b) => names.item(a.itemId, a.itemName).localeCompare(names.item(b.itemId, b.itemName), ordering) || a.title.localeCompare(b.title, ordering));
   const ownedVisible = visible.filter((row) => (qty[row.partId] ?? 0) > 0).length;
   const progress = visible.length === 0 ? 0 : Math.round((ownedVisible / visible.length) * 100);
   const sections: Array<{ letter: string; rows: LoadRow[] }> = [];
   for (const row of visible) {
-    const letter = letterOf(row.itemName);
+    const letter = letterOf(names.item(row.itemId, row.itemName));
     const last = sections[sections.length - 1];
     if (!last || last.letter !== letter) sections.push({ letter, rows: [row] });
     else last.rows.push(row);
@@ -264,12 +270,14 @@ export function LoadPage({
                   {section.rows.map((row) => {
                     const amount = qty[row.partId] ?? 0;
                     const owned = amount > 0;
+                    const itemLabel = names.item(row.itemId, row.itemName);
+                    const partLabel = names.part(row.partId, row.title, row.itemId, row.itemName);
                     return (
                       <li key={`${row.itemId}:${row.partId}`} className={`flex min-w-0 items-center border-t border-line/40 ${owned ? "opacity-60" : ""}`}>
                         <button
                           type="button"
                           aria-pressed={owned}
-                          aria-label={`${owned ? "Quitar" : "Marcar"} ${row.title}`}
+                          aria-label={`${owned ? "Quitar" : "Marcar"} ${partLabel}`}
                           onClick={() => onToggle(row.partId, owned ? 0 : 1)}
                           className="grid h-9 w-9 shrink-0 place-items-center"
                         >
@@ -280,7 +288,7 @@ export function LoadPage({
                             <img src={row.image} alt="" width={32} height={32} className="h-8 w-8 shrink-0 object-contain" />
                           )}
                           <span className="min-w-0">
-                            <span className="block truncate text-sm text-bone">{row.itemName}</span>
+                            <span className="block truncate text-sm text-bone">{itemLabel}</span>
                             <span className="block truncate text-xs text-mute">
                               {KIND_LABEL[row.kind]}
                               {row.short !== "Plano" ? ` · ${row.short}` : ""}

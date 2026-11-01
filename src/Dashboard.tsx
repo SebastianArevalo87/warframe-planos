@@ -3,7 +3,7 @@ import { fetchAdviceParts, fetchItemIndex, type DashboardHighlight, type Dashboa
 import { formatMastery } from "./lib/mastery.ts";
 import { readyToMaster, relicTargets, sharedRelics, type AdvicePart, type RelicTarget } from "./lib/relicAdvice.ts";
 import { fetchWorld, type WorldNow } from "./lib/worldstate.ts";
-import { gameName } from "./lib/gameName.ts";
+import { useNames } from "./Locale.tsx";
 import { KIND_LABEL, type Collection, type KindFilter, type StatusFilter } from "./types.ts";
 
 export function Dashboard({
@@ -75,7 +75,7 @@ export function Dashboard({
   const known = useMemo(() => {
     const byName = new Map<string, { id: string; mastered: boolean }>();
     const mastered = new Set(collection.mastered);
-    for (const item of gear ?? []) byName.set(gameName(item.name).toLowerCase(), { id: item.id, mastered: mastered.has(item.id) });
+    for (const item of gear ?? []) byName.set(item.name.toLowerCase(), { id: item.id, mastered: mastered.has(item.id) });
     return byName;
   }, [collection.mastered, gear]);
 
@@ -264,6 +264,7 @@ function HighlightList({
   onOpen: (id: string) => void;
   onSeeAll?: () => void;
 }) {
+  const names = useNames();
   return (
     <section>
       <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -289,7 +290,7 @@ function HighlightList({
                   <img src={item.image} alt="" className="h-8 w-8 shrink-0 rounded-lg bg-ink object-contain" />
                 )}
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-bone">{item.name}</span>
+                  <span className="block truncate text-bone">{names.item(item.id, item.name)}</span>
                   <span className="text-xs text-mute">
                     {KIND_LABEL[item.kind]}
                     {item.caption
@@ -370,6 +371,7 @@ function ChoiceList({
   known: Map<string, { id: string; mastered: boolean }>;
   onOpen: (id: string) => void;
 }) {
+  const labels = useNames();
   return (
     <div className="rounded-xl border border-line bg-panel px-3 py-2">
       <p className="text-[11px] font-medium tracking-[0.14em] text-gold uppercase">
@@ -381,12 +383,12 @@ function ChoiceList({
       ) : (
         <ul className="mt-2 flex flex-wrap gap-2">
           {names.map((name) => {
-            const match = known.get(gameName(name).toLowerCase());
+            const match = known.get(name.toLowerCase());
+            const label = labels.item(match?.id ?? "", name);
             const className = match?.mastered
               ? "rounded-full border border-moss/40 px-2.5 py-1 text-sm text-moss"
               : "rounded-full border border-line px-2.5 py-1 text-sm text-bone hover:border-gold";
             const note = match ? (match.mastered ? "dominado" : "sin dominar") : "";
-            const label = gameName(name);
             if (!match) return <li key={name} className={className}>{label}</li>;
             return (
               <li key={name}>
@@ -441,6 +443,7 @@ function MasteryHelp({
   onOpen: (id: string) => void;
   onMastered: () => void;
 }) {
+  const names = useNames();
   const shown = pending.slice(0, 4);
   return (
     <section className="lg:col-span-7">
@@ -469,7 +472,7 @@ function MasteryHelp({
                 <span className="flex items-center gap-2">
                   {target.image && <img src={target.image} alt="" className="h-9 w-9 shrink-0 rounded-lg bg-ink object-contain" />}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-bone">{target.name}</span>
+                    <span className="block truncate text-bone">{names.item(target.itemId, target.name)}</span>
                     <span className="text-xs text-mute">
                       {KIND_LABEL[target.kind]} · {target.missingCount === 1 ? "falta 1 plano" : "faltan 2 planos"} · {formatMastery(target.xp)} al dominarlo
                     </span>
@@ -510,7 +513,7 @@ function MasteryHelp({
                 >
                   {item.image && <img src={item.image} alt="" className="h-8 w-8 shrink-0 rounded-lg bg-panel object-contain" />}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-bone">{item.name}</span>
+                    <span className="block truncate text-bone">{names.item(item.id, item.name)}</span>
                     <span className="text-xs text-mute">{KIND_LABEL[item.kind]} · {formatMastery(item.xp)} al rango 30</span>
                   </span>
                 </button>

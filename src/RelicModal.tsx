@@ -1,4 +1,5 @@
 import type { CatalogItem, PartRelic, RelicRarity } from "./types.ts";
+import { useNames } from "./Locale.tsx";
 import { Sheet } from "./Sheet.tsx";
 
 const RARITY_LABEL: Record<RelicRarity, string> = {
@@ -14,10 +15,12 @@ const RARITY_CLASS: Record<RelicRarity, string> = {
 };
 
 export function RelicModal({ item, onClose }: { item: CatalogItem; onClose: () => void }) {
+  const names = useNames();
+  const itemLabel = names.item(item.id, item.name);
   const listed = item.parts.filter((part) => part.relics.length > 0);
   return (
-    <Sheet label={`Reliquias de ${item.name}`} onClose={onClose} stacked>
-      <h2 className="text-lg font-medium text-bone">Reliquias de {item.name}</h2>
+    <Sheet label={`Reliquias de ${itemLabel}`} onClose={onClose} stacked>
+      <h2 className="text-lg font-medium text-bone">Reliquias de {itemLabel}</h2>
       <p className="mt-1 text-sm text-mute">En qué reliquia sale cada pieza y si ahí es común, poco común o raro.</p>
       {listed.length === 0 ? (
         <p className="mt-4 text-sm text-mute">Ninguna pieza de este plano sale en reliquias.</p>
@@ -25,7 +28,7 @@ export function RelicModal({ item, onClose }: { item: CatalogItem; onClose: () =
         <div className="mt-4 flex flex-col gap-4">
           {listed.map((part) => (
             <section key={part.id} className="min-w-0">
-              <h3 className="text-sm font-medium text-bone">{part.title}</h3>
+              <h3 className="text-sm font-medium text-bone">{names.part(part.id, part.title, item.id, item.name)}</h3>
               <RelicGroup title="Disponibles" relics={part.relics.filter((relic) => !relic.vaulted)} />
               <RelicGroup title="En la bóveda" relics={part.relics.filter((relic) => relic.vaulted)} />
             </section>

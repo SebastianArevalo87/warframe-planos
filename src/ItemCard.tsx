@@ -4,6 +4,7 @@ import { KIND_LABEL, type CatalogItem, type CatalogPart } from "./types.ts";
 import { fetchPrice, fetchPrices, marketItemUrl, type PriceQuote } from "./lib/market.ts";
 import { sumMaterials } from "./lib/materials.ts";
 import { MaterialList, MaterialTotals } from "./MaterialTotals.tsx";
+import { useNames } from "./Locale.tsx";
 
 type ItemCardProps = {
   item: CatalogItem;
@@ -36,6 +37,8 @@ export function ItemCard({
   onShowRelics,
   onOpenItem,
 }: ItemCardProps) {
+  const names = useNames();
+  const itemLabel = names.item(item.id, item.name);
   const parts = visiblePartIds
     ? item.parts.filter((part) => visiblePartIds.includes(part.id))
     : item.parts;
@@ -95,7 +98,7 @@ export function ItemCard({
               <span className="rounded-full bg-moss/15 px-2 py-0.5 text-[11px] text-moss">Construido</span>
             )}
           </div>
-          <h2 className="mt-1 text-lg font-medium text-bone">{item.name}</h2>
+          <h2 className="mt-1 text-lg font-medium text-bone">{itemLabel}</h2>
           {item.parts.length > 0 && (
             <p className="text-sm text-mute">
               {ownedCount} de {item.parts.length} planos
@@ -144,7 +147,7 @@ export function ItemCard({
           </div>
           <div className="flex items-center gap-2">
             {item.slug && <PriceButton slug={item.slug} />}
-            <Quantity value={itemCopies} label={item.name} onChange={onItemQty} />
+            <Quantity value={itemCopies} label={itemLabel} onChange={onItemQty} />
           </div>
         </div>
       )}
@@ -167,6 +170,7 @@ export function ItemCard({
               <PartRow
                 key={part.id}
                 part={part}
+                title={names.part(part.id, part.title, item.id, item.name)}
                 amount={qty[part.id] ?? 0}
                 built={built}
                 crafted={crafted.has(part.id)}
@@ -273,10 +277,11 @@ export function GearCard({
 }
 
 export function ItemTile({ item, onOpen }: { item: ItemSummary; onOpen: () => void }) {
+  const names = useNames();
   const progress = tileProgress(item);
   return (
     <GearCard
-      name={item.name}
+      name={names.item(item.id, item.name)}
       image={item.image}
       label={progress.label}
       tone={progress.tone}
@@ -402,6 +407,7 @@ function BuyLink({
 
 function PartRow({
   part,
+  title,
   amount,
   built,
   crafted,
@@ -412,6 +418,7 @@ function PartRow({
   onOpenItem,
 }: {
   part: CatalogPart;
+  title: string;
   amount: number;
   built: boolean;
   crafted: boolean;
@@ -430,7 +437,7 @@ function PartRow({
         <div className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto sm:flex-1">
           {part.image && <ItemImage src={part.image} compact />}
           <div className="min-w-0">
-            <p className={amount > 0 ? "break-words text-bone" : "break-words text-mute"}>{part.title}</p>
+            <p className={amount > 0 ? "break-words text-bone" : "break-words text-mute"}>{title}</p>
             {forSale ? (
               <p className="text-xs text-gold">{amount} para vender</p>
             ) : (
@@ -440,7 +447,7 @@ function PartRow({
         </div>
         <div className="flex max-w-full flex-wrap items-center gap-2">
           {needsBuy && part.slug && (
-            <BuyLink label={part.title} slug={part.slug} quote={quote} pending={pricePending} />
+            <BuyLink label={title} slug={part.slug} quote={quote} pending={pricePending} />
           )}
           {!needsBuy && part.slug && <PriceButton slug={part.slug} />}
           {!built && part.materials.length > 0 && (
@@ -457,7 +464,7 @@ function PartRow({
             </button>
           )}
           {vendible ? (
-            <Quantity value={amount} label={part.title} onChange={onQty} />
+            <Quantity value={amount} label={title} onChange={onQty} />
           ) : amount > 0 ? (
             <button type="button" onClick={() => onQty(0)} className="rounded-full px-3 py-2 text-sm text-mute">
               Quitar

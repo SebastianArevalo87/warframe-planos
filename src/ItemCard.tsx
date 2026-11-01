@@ -23,6 +23,7 @@ type ItemCardProps = {
   onItemQty: (next: number) => void;
   onToggleBuilt: () => void;
   onShowRelics?: () => void;
+  onOpenItem?: (id: string) => void;
 };
 
 function sellable(part: { tradable: boolean; slug: string | null }) {
@@ -40,6 +41,7 @@ export function ItemCard({
   onItemQty,
   onToggleBuilt,
   onShowRelics,
+  onOpenItem,
 }: ItemCardProps) {
   const parts = visiblePartIds
     ? item.parts.filter((part) => visiblePartIds.includes(part.id))
@@ -161,6 +163,7 @@ export function ItemCard({
               title="Materiales para construir"
               note="Costo de las piezas que todavía no marcaste como construidas."
               materials={remainingMaterials}
+              onOpenItem={onOpenItem}
             />
           )}
           <ul className="flex flex-col gap-2">
@@ -175,6 +178,7 @@ export function ItemCard({
                 pricePending={buyLoading}
                 onQty={(next) => onPartQty(part.id, next)}
                 onToggleCrafted={() => onToggleCrafted(part.id)}
+                onOpenItem={onOpenItem}
               />
             ))}
           </ul>
@@ -371,6 +375,7 @@ function PartRow({
   pricePending,
   onQty,
   onToggleCrafted,
+  onOpenItem,
 }: {
   part: CatalogPart;
   amount: number;
@@ -380,6 +385,7 @@ function PartRow({
   pricePending: boolean;
   onQty: (next: number) => void;
   onToggleCrafted: () => void;
+  onOpenItem?: (id: string) => void;
 }) {
   const vendible = sellable(part);
   const forSale = vendible && built && amount > 0;
@@ -435,7 +441,7 @@ function PartRow({
       </div>
       {!built && part.materials.length > 0 && (
         <div className={crafted ? "mt-2 opacity-70" : "mt-2"}>
-          <MaterialList materials={part.materials} muted={crafted} />
+          <MaterialList materials={part.materials} muted={crafted} onOpenItem={onOpenItem} />
         </div>
       )}
     </li>

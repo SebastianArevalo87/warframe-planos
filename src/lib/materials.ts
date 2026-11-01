@@ -170,6 +170,10 @@ function imageFor(id: string, images: ReadonlyMap<string, string>): string | nul
   return `${IMAGE_BASE}${encodeURIComponent(name)}`;
 }
 
+export function isBuiltItem(id: string) {
+  return id.startsWith("/Lotus/Weapons/") || id.startsWith("/Lotus/Powersuits/");
+}
+
 function isMaterial(path: string) {
   if (path.includes("/Recipes/") || path.includes("/WeaponParts/")) return false;
   return true;

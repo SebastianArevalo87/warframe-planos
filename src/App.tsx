@@ -101,6 +101,8 @@ export function App() {
   const [prices, setPrices] = useState<Record<string, PriceQuote | null>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
   const [openId, setOpenId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("item"));
+  const itemTrail = useRef<string[]>([]);
+  const [canGoBack, setCanGoBack] = useState(false);
   const [relicsOpen, setRelicsOpen] = useState(false);
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(() => Boolean(new URLSearchParams(window.location.search).get("item")));
@@ -294,6 +296,9 @@ export function App() {
       setKindFilter(filters.kind);
       setStatusFilter(filters.status);
       const next = new URLSearchParams(window.location.search).get("item");
+      if (!next) syncTrail([]);
+      else if (itemTrail.current.at(-1) === next) syncTrail(itemTrail.current.slice(0, -1));
+      else syncTrail([]);
       setOpenId(next);
       setDetailLoading(Boolean(next));
     }
@@ -334,6 +339,7 @@ export function App() {
     function onKey(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       if (relicsOpen) setRelicsOpen(false);
+      else if (itemTrail.current.length > 0) window.history.back();
       else hideItem();
     }
     document.addEventListener("keydown", onKey);
@@ -436,6 +442,7 @@ export function App() {
       url.searchParams.delete("estado");
     }
     window.history.pushState({}, "", url);
+    syncTrail([]);
     setPage(next);
     setOpenId(null);
     window.scrollTo({ top: 0 });
@@ -451,6 +458,7 @@ export function App() {
     url.searchParams.delete("item");
     writeFilters(url, kind, status);
     window.history.pushState({}, "", url);
+    syncTrail([]);
     setPage("search");
     setOpenId(null);
     window.scrollTo({ top: 0 });
@@ -463,7 +471,14 @@ export function App() {
     window.history.replaceState({}, "", url);
   }
 
-  function showItem(id: string) {
+  function syncTrail(next: string[]) {
+    itemTrail.current = next;
+    setCanGoBack(next.length > 0);
+  }
+
+  function showItem(id: string, nest = false) {
+    if (nest && openId && openId !== id) syncTrail([...itemTrail.current, openId]);
+    else syncTrail([]);
     const url = new URL(window.location.href);
     url.searchParams.set("item", id);
     window.history.pushState({ item: id }, "", url);
@@ -473,6 +488,7 @@ export function App() {
   }
 
   function hideItem() {
+    syncTrail([]);
     const url = new URL(window.location.href);
     url.searchParams.delete("item");
     window.history.pushState({}, "", url);
@@ -691,7 +707,11 @@ export function App() {
         </div>
       )}
       {openId && (
-        <Sheet label={openItem?.name ?? "Detalle del plano"} onClose={hideItem}>
+        <Sheet
+          label={openItem?.name ?? "Detalle del plano"}
+          onClose={hideItem}
+          onBack={canGoBack ? () => window.history.back() : undefined}
+        >
           {detailLoading && <p className="px-2 pb-4 text-mute">Abriendo el plano…</p>}
           {!detailLoading && !openItem && <p className="px-2 pb-4 text-mute">Ese plano no está en la base.</p>}
           {!detailLoading && openItem && (
@@ -708,6 +728,7 @@ export function App() {
               onItemQty={(next) => setItemQty(openItem.id, next)}
               onToggleBuilt={() => toggleBuilt(openItem.id)}
               onShowRelics={() => setRelicsOpen(true)}
+              onOpenItem={(id) => showItem(id, true)}
             />
           )}
         </Sheet>

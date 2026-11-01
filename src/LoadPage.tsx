@@ -3,6 +3,7 @@ import { fetchLoadIndex, type LoadRow } from "./lib/catalogRemote.ts";
 import { useNames } from "./Locale.tsx";
 import { MasteryPage } from "./MasteryPage.tsx";
 import { sortLocale } from "./lib/locale.ts";
+import { useShowFounders } from "./lib/founders.ts";
 import { KIND_LABEL } from "./types.ts";
 
 type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "archgun" | "archmelee" | "companion" | "robotic" | "amp" | "varios";
@@ -113,6 +114,7 @@ export function LoadPage({
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"parts" | "mastered">(window.location.hash === "#dominados" ? "mastered" : "parts");
   const names = useNames();
+  const foundersVisible = useShowFounders();
   const ordering = sortLocale(names.locale);
 
   useEffect(() => {
@@ -131,7 +133,7 @@ export function LoadPage({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [foundersVisible]);
 
   const grouped = useMemo(() => rows.filter((row) => inGroup(row, group)), [group, rows]);
 

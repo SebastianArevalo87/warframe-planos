@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchItemIndex } from "./lib/catalogRemote.ts";
 import { formatMastery, masteryXp, rankFromXp } from "./lib/mastery.ts";
+import { useShowFounders } from "./lib/founders.ts";
 import type { ItemKind } from "./types.ts";
 
 export function MasteryMark({ xp, ready = true }: { xp: number; ready?: boolean }) {
@@ -36,6 +37,7 @@ export function MasteryMark({ xp, ready = true }: { xp: number; ready?: boolean 
 }
 
 export function MasteryBadge({ mastered }: { mastered: string[] }) {
+  const foundersVisible = useShowFounders();
   const [ready, setReady] = useState(false);
   const [rows, setRows] = useState<Array<{ id: string; kind: ItemKind }>>([]);
 
@@ -54,7 +56,7 @@ export function MasteryBadge({ mastered }: { mastered: string[] }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [foundersVisible]);
 
   const xp = useMemo(() => masteryXp(rows, mastered), [mastered, rows]);
   return <MasteryMark xp={xp} ready={ready} />;

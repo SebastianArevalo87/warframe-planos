@@ -1,5 +1,6 @@
 import type { AdvicePart } from "./relicAdvice.ts";
 import { isItemKind, type Catalog, type CatalogItem, type CatalogPart, type CraftMaterial, type ItemKind, type PartRelic, type RelicRarity } from "../types.ts";
+import { showFounders, isFounderItem } from "./founders.ts";
 import { supabase } from "./supabase.ts";
 
 export type DashboardHighlight = {
@@ -158,7 +159,9 @@ function asStats(value: unknown): DashboardStats {
 
 export async function fetchDashboard(): Promise<DashboardStats> {
   if (!supabase) throw new Error("supabase");
-  const { data, error } = await supabase.rpc("dashboard_stats");
+  const { data, error } = await supabase.rpc("dashboard_stats", {
+    p_include_founders: showFounders(),
+  });
   if (error) throw error;
   return asStats(data);
 }
@@ -178,6 +181,7 @@ export async function fetchItemList(kind: string, query: string, status: string,
     p_status: status,
     p_limit: ITEM_PAGE_SIZE,
     p_offset: offset,
+    p_include_founders: showFounders(),
   });
   if (error) throw error;
   if (!data || typeof data !== "object" || Array.isArray(data)) return { items: [], total: 0 };
@@ -261,7 +265,7 @@ export async function fetchLoadIndex(): Promise<LoadRow[]> {
     const batch = (data ?? []) as unknown[];
     for (const entry of batch) {
       const row = asLoadRow(entry);
-      if (row) rows.push(row);
+      if (row && (showFounders() || !isFounderItem(row.itemId))) rows.push(row);
     }
     if (batch.length < pageSize) break;
   }
@@ -289,7 +293,7 @@ export async function fetchAdviceParts(): Promise<AdvicePart[]> {
     const batch = (data ?? []) as unknown[];
     for (const entry of batch) {
       const row = asAdvicePart(entry);
-      if (row) rows.push(row);
+      if (row && (showFounders() || !isFounderItem(row.itemId))) rows.push(row);
     }
     if (batch.length < pageSize) break;
   }
@@ -310,7 +314,7 @@ export async function fetchItemIndex(): Promise<MasteryRow[]> {
     const batch = (data ?? []) as unknown[];
     for (const entry of batch) {
       const row = asMasteryRow(entry);
-      if (row) rows.push(row);
+      if (row && (showFounders() || !isFounderItem(row.id))) rows.push(row);
     }
     if (batch.length < pageSize) break;
   }

@@ -3,6 +3,7 @@ import { fetchItemIndex, type MasteryRow } from "./lib/catalogRemote.ts";
 import { useNames } from "./Locale.tsx";
 import { GEAR_GRID, GearCard } from "./ItemCard.tsx";
 import { sortLocale } from "./lib/locale.ts";
+import { useShowFounders } from "./lib/founders.ts";
 import type { ItemKind } from "./types.ts";
 
 type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "companion" | "robotic" | "archgun" | "archmelee" | "amp";
@@ -39,6 +40,7 @@ export function MasteryPage({
   const [query, setQuery] = useState("");
   const done = useMemo(() => new Set(mastered), [mastered]);
   const names = useNames();
+  const foundersVisible = useShowFounders();
   const ordering = sortLocale(names.locale);
 
   useEffect(() => {
@@ -57,7 +59,7 @@ export function MasteryPage({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [foundersVisible]);
 
   const groups = useMemo(
     () =>

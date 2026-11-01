@@ -19,6 +19,7 @@ import { Sheet } from "./Sheet.tsx";
 import { Gate, LoginScreen } from "./Login.tsx";
 import { useNames } from "./Locale.tsx";
 import { isLocale, LOCALES } from "./lib/locale.ts";
+import { storeShowFounders, useShowFounders } from "./lib/founders.ts";
 
 const KINDS: KindFilter[] = ["all", "weapon", "warframe", "primary", "secondary", "melee", "archwing", "archgun", "archmelee", "companion", "robotic", "amp"];
 const STATUSES: StatusFilter[] = ["missing", "ready", "built", "almost", "owned", "all"];
@@ -86,6 +87,7 @@ export function App() {
   );
   const [page, setPage] = useState<AppPage>(readPage);
   const names = useNames();
+  const foundersVisible = useShowFounders();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => readFilters().status);
   const [kindFilter, setKindFilter] = useState<KindFilter>(() => readFilters().kind);
@@ -199,7 +201,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [accountReady, savedTick]);
+  }, [accountReady, foundersVisible, savedTick]);
 
   useEffect(() => {
     if (!accountReady || !supabaseEnabled || page !== "sell") return;
@@ -260,7 +262,7 @@ export function App() {
       .finally(() => {
         if (listRequest.current === request) setListLoading(false);
       });
-  }, [accountReady, kindFilter, debouncedQuery, statusFilter, listReload, page]);
+  }, [accountReady, foundersVisible, kindFilter, debouncedQuery, statusFilter, listReload, page]);
 
   const hasMore = rows.length < listTotal;
 
@@ -621,6 +623,18 @@ export function App() {
                   autoComplete="off"
                   className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
                 />
+              </label>
+              <label className="mt-3 flex items-start gap-2 text-sm text-bone">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-gold"
+                  checked={!foundersVisible}
+                  onChange={(event) => storeShowFounders(!event.target.checked)}
+                />
+                <span>
+                  Ocultar equipo de Founder
+                  <span className="mt-0.5 block text-xs text-mute">Excalibur Prime, Lato Prime y Skana Prime.</span>
+                </span>
               </label>
               {accountHint && <p className="mt-2 text-xs text-clay">{accountHint}</p>}
             </div>

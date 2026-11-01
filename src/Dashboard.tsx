@@ -4,6 +4,7 @@ import { formatMastery } from "./lib/mastery.ts";
 import { readyToMaster, relicTargets, sharedRelics, type AdvicePart, type RelicTarget } from "./lib/relicAdvice.ts";
 import { fetchWorld, type WorldNow } from "./lib/worldstate.ts";
 import { useNames } from "./Locale.tsx";
+import { useShowFounders } from "./lib/founders.ts";
 import { KIND_LABEL, type Collection, type KindFilter, type StatusFilter } from "./types.ts";
 
 export function Dashboard({
@@ -23,6 +24,7 @@ export function Dashboard({
   onSell: () => void;
   onMastered: () => void;
 }) {
+  const foundersVisible = useShowFounders();
   const [world, setWorld] = useState<WorldNow | null>(null);
   const [worldError, setWorldError] = useState("");
   const [parts, setParts] = useState<AdvicePart[] | null>(null);
@@ -67,7 +69,7 @@ export function Dashboard({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [foundersVisible]);
 
   const targets = useMemo(() => (parts ? relicTargets(parts, collection) : []), [collection, parts]);
   const shared = useMemo(() => sharedRelics(targets), [targets]);

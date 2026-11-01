@@ -63,7 +63,7 @@ function fold(value: string) {
 
 function inGroup(row: LoadRow, group: GroupId) {
   if (group === "varios") return row.short !== "Plano";
-  if (group === "archwing") return row.kind === "archwing" || row.kind === "archgun" || row.kind === "archmelee";
+  if (group === "archwing") return row.kind === "archwing" || row.kind === "archgun" || row.kind === "archmelee" || row.kind === "necramech";
   return row.kind === group;
 }
 

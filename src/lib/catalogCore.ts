@@ -13,6 +13,7 @@ export type RawItem = {
   name?: string;
   uniqueName?: string;
   category?: string;
+  type?: string;
   masterable?: boolean;
   vaulted?: boolean;
   imageName?: string;
@@ -432,7 +433,7 @@ export function buildCatalog(
     for (const raw of group.items) {
       const name = raw.name?.trim();
       const id = raw.uniqueName?.trim();
-      const kind = group.kind;
+      const kind = raw.type === "Necramech" ? "necramech" : group.kind;
       if (!name || !id || !kind || seen.has(id) || raw.masterable === false) continue;
       if (/\bexalted\b/i.test(name)) continue;
       seen.add(id);

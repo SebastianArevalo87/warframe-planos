@@ -1,5 +1,5 @@
 alter table public.catalog_items drop constraint if exists catalog_items_kind_check;
-alter table public.catalog_items add constraint catalog_items_kind_check check (kind in ('warframe', 'primary', 'secondary', 'melee', 'archwing', 'archgun', 'archmelee', 'companion'));
+alter table public.catalog_items add constraint catalog_items_kind_check check (kind in ('warframe', 'primary', 'secondary', 'melee', 'archwing', 'archgun', 'archmelee', 'necramech', 'companion'));
 
 create or replace function public.dashboard_stats()
 returns jsonb
@@ -72,8 +72,8 @@ begin
     'secondaryTotal', count(*) filter (where kind = 'secondary'),
     'melee', count(*) filter (where kind = 'melee' and complete),
     'meleeTotal', count(*) filter (where kind = 'melee'),
-    'archwing', count(*) filter (where kind in ('archwing', 'archgun', 'archmelee') and complete),
-    'archwingTotal', count(*) filter (where kind in ('archwing', 'archgun', 'archmelee')),
+    'archwing', count(*) filter (where kind in ('archwing', 'archgun', 'archmelee', 'necramech') and complete),
+    'archwingTotal', count(*) filter (where kind in ('archwing', 'archgun', 'archmelee', 'necramech')),
     'companion', count(*) filter (where kind = 'companion' and complete),
     'companionTotal', count(*) filter (where kind = 'companion'),
     'ready', count(*) filter (where ready),
@@ -186,7 +186,7 @@ begin
     left join public.catalog_parts p on p.item_id = i.id
     where coalesce(p_kind, 'all') = 'all'
       or (p_kind = 'weapon' and i.kind in ('primary', 'secondary', 'melee'))
-      or (p_kind = 'archwing' and i.kind in ('archwing', 'archgun', 'archmelee'))
+      or (p_kind = 'archwing' and i.kind in ('archwing', 'archgun', 'archmelee', 'necramech'))
       or i.kind = p_kind
     group by i.id, o.parts, o.built, o.items
   ),
@@ -294,7 +294,7 @@ begin
     nullif(element->>'setSlug', ''),
     now()
   from jsonb_array_elements(coalesce(payload->'items', '[]'::jsonb)) as element
-  where element->>'kind' in ('warframe', 'primary', 'secondary', 'melee', 'archwing', 'archgun', 'archmelee', 'companion')
+  where element->>'kind' in ('warframe', 'primary', 'secondary', 'melee', 'archwing', 'archgun', 'archmelee', 'necramech', 'companion')
     and length(coalesce(element->>'id', '')) between 1 and 400
     and length(coalesce(element->>'name', '')) between 1 and 200
   on conflict (id) do update set
@@ -415,7 +415,7 @@ begin
     left join public.catalog_parts p on p.item_id = i.id
     where coalesce(p_kind, 'all') = 'all'
       or (p_kind = 'weapon' and i.kind in ('primary', 'secondary', 'melee'))
-      or (p_kind = 'archwing' and i.kind in ('archwing', 'archgun', 'archmelee'))
+      or (p_kind = 'archwing' and i.kind in ('archwing', 'archgun', 'archmelee', 'necramech'))
       or i.kind = p_kind
     group by i.id, i.name, o.parts, o.built, o.items
   ),

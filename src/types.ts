@@ -6,6 +6,7 @@ export type ItemKind =
   | "archwing"
   | "archgun"
   | "archmelee"
+  | "necramech"
   | "companion";
 
 export const KIND_LABEL: Record<ItemKind, string> = {
@@ -16,6 +17,7 @@ export const KIND_LABEL: Record<ItemKind, string> = {
   archwing: "Archwing",
   archgun: "Arch-gun",
   archmelee: "Arch-melee",
+  necramech: "Necramech",
   companion: "Compañero",
 };
 
@@ -26,7 +28,7 @@ export function isItemKind(value: unknown): value is ItemKind {
 export function matchesKind(kind: ItemKind, filter: KindFilter): boolean {
   if (filter === "all") return true;
   if (filter === "weapon") return kind === "primary" || kind === "secondary" || kind === "melee";
-  if (filter === "archwing") return kind === "archwing" || kind === "archgun" || kind === "archmelee";
+  if (filter === "archwing") return kind === "archwing" || kind === "archgun" || kind === "archmelee" || kind === "necramech";
   return kind === filter;
 }
 

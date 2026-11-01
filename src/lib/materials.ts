@@ -42,6 +42,26 @@ const NAMES: Record<string, string> = {
   PrimeBucks: "Ducados",
   Eidolonium: "Eidolon",
   SeriglassShard: "Fragmento de seriglass",
+  DamagedMechPartChassisItem: "Carcasa de Necramech dañada",
+  DamagedMechPartEngineItem: "Motor de Necramech dañado",
+  DamagedMechPartSystemsItem: "Cápsula de Necramech dañada",
+  DamagedMechPartWeaponPodItem: "Compartimento de armas de Necramech dañado",
+  TitaniumRailjackItem: "Titanio",
+  GenericFishScrapItem: "Chatarra",
+  DeimosCommonOreAAlloyItem: "Aleación adramal",
+  DeimosCommonOreBAlloyItem: "Bafolita templada",
+  DeimosUncommonOreAAlloyItem: "Namalon devolucionado",
+  DeimosRareOreAAlloyItem: "Destilado táumico",
+  DeimosCommonGemACutItem: "Tiametrita facetada",
+  DeimosCommonGemBCutItem: "Dagónico purgado",
+  DeimosUncommonGemACutItem: "Hecifrón purificado",
+  RareGemACutAItem: "Crimzian estelar",
+  SolarisUncommonGemACutItem: "Lágrimas de goblita",
+  OrbStoneItem: "Teroglobo luciente",
+  DeimosOrokinFishAPartItem: "Filtro biótico",
+  DeimosOrokinFishBPartItem: "Sección de núcleo espinal",
+  DeimosOrokinFishCPartItem: "Proa craneal",
+  DeimosInfestedFishGPartItem: "Fauces parásitas",
   GrokdrulItem: "Grokdrul",
   IraditeItem: "Iradita",
   MapricoFruitItem: "Maprico",
@@ -76,12 +96,12 @@ export function materialsForPart(
   partId: string,
   book: RecipeBook,
   images: ReadonlyMap<string, string> = new Map(),
+  names: ReadonlyMap<string, string> = new Map(),
 ): CraftMaterial[] {
-  const crafted = book.byResult.get(partId) ?? [];
-  const fromComponent = bestRecipe(crafted, images);
-  if (fromComponent) return fromComponent;
+  const fromComponent = bestRecipe(book.byResult.get(partId) ?? [], images, names);
+  if (fromComponent.length > 0) return fromComponent;
   const keyed = book.byKey.get(partId);
-  return keyed ? materialEntries(keyed, images) : [];
+  return keyed ? materialEntries(keyed, images, names) : [];
 }
 
 export function sumMaterials(groups: CraftMaterial[][]): CraftMaterial[] {
@@ -106,16 +126,24 @@ export function formatAmount(count: number) {
   return new Intl.NumberFormat("es-AR").format(count);
 }
 
-function bestRecipe(recipes: RawRecipe[], images: ReadonlyMap<string, string>): CraftMaterial[] {
+function bestRecipe(
+  recipes: RawRecipe[],
+  images: ReadonlyMap<string, string>,
+  names: ReadonlyMap<string, string>,
+): CraftMaterial[] {
   let best: CraftMaterial[] = [];
   for (const recipe of recipes) {
-    const materials = materialEntries(recipe, images);
+    const materials = materialEntries(recipe, images, names);
     if (materials.length > best.length) best = materials;
   }
   return best;
 }
 
-function materialEntries(recipe: RawRecipe, images: ReadonlyMap<string, string>): CraftMaterial[] {
+function materialEntries(
+  recipe: RawRecipe,
+  images: ReadonlyMap<string, string>,
+  names: ReadonlyMap<string, string>,
+): CraftMaterial[] {
   const counts = new Map<string, number>();
   for (const ingredient of recipe.ingredients ?? []) {
     const id = ingredient.ItemType?.trim() ?? "";
@@ -125,7 +153,7 @@ function materialEntries(recipe: RawRecipe, images: ReadonlyMap<string, string>)
   }
   const materials = [...counts.entries()].map(([id, count]) => ({
     id,
-    name: resourceName(id),
+    name: resourceName(id, names),
     count,
     image: imageFor(id, images),
   }));
@@ -148,9 +176,9 @@ function isMaterial(path: string) {
   return true;
 }
 
-function resourceName(path: string) {
+function resourceName(path: string, names: ReadonlyMap<string, string>) {
   const leaf = path.split("/").pop() ?? path;
-  return NAMES[leaf] ?? NAMES[path] ?? readableName(leaf);
+  return NAMES[leaf] ?? NAMES[path] ?? names.get(path) ?? readableName(leaf);
 }
 
 function readableName(leaf: string) {

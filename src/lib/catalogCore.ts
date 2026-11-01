@@ -44,6 +44,7 @@ export async function fetchSource(): Promise<{
   components: RawComponent[];
   recipes: RecipeBook;
   images: Map<string, string>;
+  names: Map<string, string>;
 }> {
   const commitResponse = await fetch("https://api.github.com/repos/WFCD/warframe-items/commits/master", {
     headers: {
@@ -55,7 +56,7 @@ export async function fetchSource(): Promise<{
   const commit = (await commitResponse.json()) as { sha?: string };
   const version = commit.sha?.slice(0, 7) ?? "github";
 
-  const [groups, components, recipes, images] = await Promise.all([
+  const [groups, components, recipes, materialIndex] = await Promise.all([
     Promise.all(
       DATA_FILES.map(async (file) => {
         const response = await fetch(`${DATA_BASE}/${file}.json`);
@@ -77,29 +78,33 @@ export async function fetchSource(): Promise<{
     fetchMaterialImages(),
   ]);
 
-  return { version, groups, components, recipes, images };
+  return { version, groups, components, recipes, images: materialIndex.images, names: materialIndex.names };
 }
 
-async function fetchMaterialImages(): Promise<Map<string, string>> {
+async function fetchMaterialImages(): Promise<{ images: Map<string, string>; names: Map<string, string> }> {
   const images = new Map<string, string>();
+  const names = new Map<string, string>();
   await Promise.all(
     IMAGE_FILES.map(async (file) => {
       try {
         const response = await fetch(`${DATA_BASE}/${file}.json`);
         if (!response.ok) return;
-        const data = (await response.json()) as Array<{ uniqueName?: string; imageName?: string }>;
+        const data = (await response.json()) as Array<{ uniqueName?: string; imageName?: string; name?: string }>;
         if (!Array.isArray(data)) return;
         for (const item of data) {
           const id = item.uniqueName?.trim();
           const image = item.imageName?.trim();
-          if (id && image) images.set(id, image);
+          const name = item.name?.trim();
+          if (!id) continue;
+          if (image) images.set(id, image);
+          if (name) names.set(id, name);
         }
       } catch {
         return;
       }
     }),
   );
-  return images;
+  return { images, names };
 }
 
 const KIND_BY_CATEGORY: Record<string, ItemKind> = {
@@ -143,6 +148,9 @@ const PART_LABELS: Record<string, string> = {
   "Left Gauntlet": "Guantelete izquierdo",
   "Right Gauntlet": "Guantelete derecho",
   Engine: "Motor",
+  Capsule: "Cápsula",
+  Casing: "Carcasa",
+  "Weapon Pod": "Compartimento de armas",
   Boot: "Bota",
   Chain: "Cadena",
   Subcortex: "Subcórtex",
@@ -202,6 +210,9 @@ const PART_SUFFIXES: Array<[string, string]> = [
   ["Stars", "Stars"],
   ["Rivet", "Rivet"],
   ["Hook", "Hook"],
+  ["WeaponPod", "Weapon Pod"],
+  ["Capsule", "Capsule"],
+  ["Casing", "Casing"],
   ["Engine", "Engine"],
   ["Boot", "Boot"],
   ["Chain", "Chain"],
@@ -217,12 +228,24 @@ const PART_SUFFIXES: Array<[string, string]> = [
   ["Chassis", "Chassis"],
 ];
 
-function partNameOf(component: RawComponent): string | null {
+function partNameOf(component: RawComponent, names: ReadonlyMap<string, string>): string | null {
   const given = component.name?.trim();
   if (given) return given;
-  const segment = component.uniqueName?.split("/").pop() ?? "";
+  const id = component.uniqueName?.trim() ?? "";
+  const known = names.get(id);
+  if (known) return known;
+  const segment = id.split("/").pop()?.replace(/Item$/, "") ?? "";
   const match = PART_SUFFIXES.find(([suffix]) => segment.endsWith(suffix));
   return match ? match[1] : null;
+}
+
+function roleOf(parent: string, partName: string) {
+  const prefix = `${parent} `;
+  if (partName.toLowerCase().startsWith(prefix.toLowerCase())) {
+    const rest = partName.slice(prefix.length).trim();
+    if (rest) return rest;
+  }
+  return partName;
 }
 
 function isRecipe(component: RawComponent): boolean {
@@ -233,21 +256,37 @@ function isRecipe(component: RawComponent): boolean {
   return uniqueName.split("/").pop()?.endsWith("Blueprint") === true;
 }
 
+function isListedPart(component: RawComponent, recipes: RecipeBook): boolean {
+  if (isRecipe(component)) return true;
+  const id = component.uniqueName?.trim() ?? "";
+  if (!id || id.includes("/Items/") || id.includes("/Research/")) return false;
+  return (recipes.byResult.get(id)?.length ?? 0) > 0;
+}
+
+const PART_NAME_ES: Record<string, string> = {
+  Mandachord: "Mandacordio",
+  "Exceptional Sentient Core": "Núcleo sintiente excepcional",
+};
+
 function spanishPart(partName: string): string {
+  const named = PART_NAME_ES[partName];
+  if (named) return named;
   const exact = PART_LABELS[partName];
   if (exact) return exact;
   for (const key of LABEL_KEYS) {
-    if (partName.endsWith(key)) {
-      return `${partName.slice(0, -key.length).trimEnd()} ${PART_LABELS[key]}`.trim();
+    if (partName === key || !partName.endsWith(key)) continue;
+    const prefix = partName.slice(0, -key.length).trimEnd();
+    if (!prefix || /^(Left|Right|Upper|Lower|War|Day|Night)$/i.test(prefix)) {
+      return `${prefix} ${PART_LABELS[key]}`.trim();
     }
   }
   return partName;
 }
 
 function partTitle(parent: string, partName: string): string {
-  const exact = PART_LABELS[partName];
-  if (exact) return `${exact} de ${parent}`;
-  return spanishPart(partName);
+  const label = spanishPart(partName);
+  if (label.toLowerCase().includes(parent.toLowerCase())) return label;
+  return `${label} de ${parent}`;
 }
 
 function englishName(parent: string, partName: string): string {
@@ -339,6 +378,7 @@ export function buildCatalog(
   components: RawComponent[] = [],
   recipes: RecipeBook = indexRecipes({}),
   images: ReadonlyMap<string, string> = new Map(),
+  names: ReadonlyMap<string, string> = new Map(),
 ): Catalog {
   const market = indexMarket(entries);
   const componentById = new Map<string, RawComponent>();
@@ -362,22 +402,28 @@ export function buildCatalog(
       const seenParts = new Set<string>();
       for (const component of raw.components ?? []) {
         const partId = component.uniqueName?.trim();
-        if (!partId || seenParts.has(partId) || !isRecipe(component)) continue;
+        if (!partId || seenParts.has(partId) || !isListedPart(component, recipes)) continue;
         const resolved = componentById.get(partId) ?? component;
-        const partName = partNameOf(resolved);
+        const partName = partNameOf(resolved, names);
         if (!partName) continue;
+        const role = roleOf(name, partName);
         seenParts.add(partId);
-        const slug = matchSlug(name, partName, partId, market);
+        const slug = matchSlug(name, role, partId, market);
         parts.push({
           id: partId,
-          short: spanishPart(partName),
-          title: partTitle(name, partName),
-          english: englishName(name, partName),
+          short: spanishPart(role),
+          title: partTitle(name, role),
+          english: englishName(name, role),
           tradable: resolved.tradable === true || component.tradable === true || slug !== null,
           slug,
-          image: itemImage(resolved.imageName),
-          materials: materialsForPart(partId, recipes, images),
+          image: itemImage(resolved.imageName) ?? itemImage(images.get(partId)),
+          materials: materialsForPart(partId, recipes, images, names),
         });
+      }
+
+      const partIds = new Set(parts.map((part) => part.id));
+      for (const part of parts) {
+        part.materials = part.materials.filter((material) => material.id === "credits" || !partIds.has(material.id));
       }
 
       parts.sort((a, b) => {

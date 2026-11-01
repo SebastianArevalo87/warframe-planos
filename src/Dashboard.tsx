@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchAdviceParts, fetchItemIndex, type DashboardHighlight, type DashboardStats, type MasteryRow } from "./lib/catalogRemote.ts";
 import { formatMastery } from "./lib/mastery.ts";
 import { readyToMaster, relicTargets, sharedRelics, type AdvicePart, type RelicTarget } from "./lib/relicAdvice.ts";
-import { fetchWorld, type WorldNow } from "./lib/worldstate.ts";
+import { fetchCodaShop, codaElement, type CodaShop } from "./lib/coda.ts";
+import { fetchWorld, formatTimeLeft, type WorldNow } from "./lib/worldstate.ts";
 import { useNames } from "./Locale.tsx";
 import { useShowFounders } from "./lib/founders.ts";
 import { KIND_LABEL, type Collection, type KindFilter, type StatusFilter } from "./types.ts";
@@ -129,6 +130,7 @@ export function Dashboard({
             )}
           </div>
         </div>
+        <CodaList gear={gear} mastered={collection.mastered} onOpen={onOpen} />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -326,6 +328,110 @@ function HighlightList({
         </ul>
       )}
     </section>
+  );
+}
+
+function CodaList({
+  gear,
+  mastered,
+  onOpen,
+}: {
+  gear: MasteryRow[] | null;
+  mastered: string[];
+  onOpen: (id: string) => void;
+}) {
+  const names = useNames();
+  const [shop, setShop] = useState<CodaShop | null>(null);
+  const done = useMemo(() => new Set(mastered), [mastered]);
+  const byName = useMemo(() => {
+    const map = new Map<string, MasteryRow>();
+    for (const item of gear ?? []) map.set(item.name.toLowerCase(), item);
+    return map;
+  }, [gear]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      void fetchCodaShop().then((next) => {
+        if (!cancelled) setShop(next);
+      });
+    };
+    load();
+    const timer = window.setInterval(load, 15 * 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const groups = [
+    { kind: "primary" as const, label: "Primaria" },
+    { kind: "secondary" as const, label: "Secundaria" },
+    { kind: "melee" as const, label: "Cuerpo a cuerpo" },
+  ];
+
+  return (
+    <div className="mt-6">
+      <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
+        <h3 className="text-sm font-medium text-bone">Coda de Eleanor</h3>
+        {shop && (
+          <span className="text-sm text-mute">
+            Lote {shop.batch} · cambia en {formatTimeLeft(new Date(shop.until).toISOString())}
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-mute">A la venta con células de corazón vivas. El elemento y el porcentaje los anotan los jugadores.</p>
+      {!shop && <p className="mt-3 text-sm text-mute">Leyendo la tienda…</p>}
+      {shop && !shop.reported && <p className="mt-3 text-sm text-mute">No pude leer el elemento de esta rotación.</p>}
+      {shop && (
+        <div className="mt-3 grid gap-4 lg:grid-cols-3">
+          {groups.map((group) => (
+            <div key={group.kind}>
+              <p className="text-[11px] font-medium tracking-[0.14em] text-gold uppercase">{group.label}</p>
+              <ul className="mt-2 flex flex-col gap-1.5">
+                {shop.weapons
+                  .filter((weapon) => weapon.kind === group.kind)
+                  .map((weapon) => {
+                    const item = byName.get(weapon.name.toLowerCase());
+                    const label = names.item(item?.id ?? "", weapon.name);
+                    const owned = item ? done.has(item.id) : false;
+                    const bonus = weapon.element && weapon.percent != null
+                      ? `${codaElement(weapon.element)} ${weapon.percent.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
+                      : "Sin porcentaje";
+                    const body = (
+                      <>
+                        {item?.image && <img src={item.image} alt="" className="h-8 w-8 shrink-0 rounded-lg bg-panel object-contain" />}
+                        <span className="min-w-0 flex-1">
+                          <span className={`block truncate text-sm ${owned ? "text-moss" : "text-bone"}`}>{label}</span>
+                          <span className="text-xs">
+                            {owned && <span className="text-mute">Dominado · </span>}
+                            <span className={weapon.element ? "text-gold" : "text-mute"}>{bonus}</span>
+                          </span>
+                        </span>
+                      </>
+                    );
+                    return (
+                      <li key={weapon.name}>
+                        {item ? (
+                          <button
+                            type="button"
+                            onClick={() => onOpen(item.id)}
+                            className="flex w-full items-center gap-2 rounded-xl border border-line bg-ink px-2 py-1.5 text-left hover:border-gold"
+                          >
+                            {body}
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2 rounded-xl border border-line bg-ink px-2 py-1.5">{body}</div>
+                        )}
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

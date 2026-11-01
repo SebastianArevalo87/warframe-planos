@@ -227,7 +227,7 @@ declare
 begin
   if coalesce(p_kind, 'all') = 'all'
      and length(btrim(coalesce(p_query, ''))) < 2
-     and coalesce(p_status, 'missing') is distinct from 'ready' then
+     and coalesce(p_status, 'missing') not in ('ready', 'built', 'almost', 'owned') then
     return '{"items":[],"total":0}'::jsonb;
   end if;
 
@@ -260,7 +260,9 @@ begin
     from public.catalog_items i
     cross join owned o
     left join public.catalog_parts p on p.item_id = i.id
-    where coalesce(p_kind, 'all') = 'all' or i.kind = p_kind
+    where coalesce(p_kind, 'all') = 'all'
+      or (p_kind = 'weapon' and i.kind <> 'warframe')
+      or i.kind = p_kind
     group by i.id, o.parts, o.built, o.items
   ),
   filtered as (
@@ -284,6 +286,21 @@ begin
         and part_count > 0
         and not is_built
         and owned_count = part_count
+      )
+      or (
+        p_status = 'built'
+        and (is_built or (part_count = 0 and owned_item))
+      )
+      or (
+        p_status = 'almost'
+        and part_count > 0
+        and not is_built
+        and owned_count > 0
+        and part_count - owned_count between 1 and 2
+      )
+      or (
+        p_status = 'owned'
+        and owned_count > 0
       )
     )
   )

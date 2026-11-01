@@ -39,5 +39,5 @@ export type Draft = {
   history: string[];
 };
 
-export type StatusFilter = "missing" | "ready" | "all";
-export type KindFilter = "all" | ItemKind;
+export type StatusFilter = "missing" | "ready" | "built" | "almost" | "owned" | "all";
+export type KindFilter = "all" | "weapon" | ItemKind;

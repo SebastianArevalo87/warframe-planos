@@ -1,4 +1,5 @@
 import type { DashboardHighlight, DashboardStats } from "./lib/catalogRemote.ts";
+import type { KindFilter, StatusFilter } from "./types.ts";
 
 const KIND_LABEL = {
   warframe: "Warframe",
@@ -12,13 +13,13 @@ export function Dashboard({
   accountName,
   mastery,
   onOpen,
-  onSearchReady,
+  onSearch,
 }: {
   stats: DashboardStats | null;
   accountName: string;
   mastery: string;
   onOpen: (id: string) => void;
-  onSearchReady: () => void;
+  onSearch: (kind: KindFilter, status: StatusFilter) => void;
 }) {
   if (!stats) return <p className="text-mute">Abriendo el tablero…</p>;
 
@@ -35,20 +36,37 @@ export function Dashboard({
       )}
 
       <section className="grid grid-cols-2 gap-3">
-        <BigNumber label="Warframes" value={stats.frames} total={stats.frameTotal} percent={framePercent} />
-        <BigNumber label="Armas" value={stats.weapons} total={stats.weaponTotal} percent={weaponPercent} />
+        <BigNumber
+          label="Warframes"
+          value={stats.frames}
+          total={stats.frameTotal}
+          percent={framePercent}
+          onClick={() => onSearch("warframe", "built")}
+        />
+        <BigNumber
+          label="Armas"
+          value={stats.weapons}
+          total={stats.weaponTotal}
+          percent={weaponPercent}
+          onClick={() => onSearch("weapon", "built")}
+        />
       </section>
 
       <section className="grid grid-cols-3 gap-2">
-        <SmallMeter label="Primarias" value={stats.primary} total={stats.primaryTotal} />
-        <SmallMeter label="Secundarias" value={stats.secondary} total={stats.secondaryTotal} />
-        <SmallMeter label="Melee" value={stats.melee} total={stats.meleeTotal} />
+        <SmallMeter label="Primarias" value={stats.primary} total={stats.primaryTotal} onClick={() => onSearch("primary", "built")} />
+        <SmallMeter
+          label="Secundarias"
+          value={stats.secondary}
+          total={stats.secondaryTotal}
+          onClick={() => onSearch("secondary", "built")}
+        />
+        <SmallMeter label="Melee" value={stats.melee} total={stats.meleeTotal} onClick={() => onSearch("melee", "built")} />
       </section>
 
       <section className="grid grid-cols-3 gap-2">
-        <CountCard label="Planos tuyos" value={stats.ownedParts} hint={`de ${stats.partTotal}`} />
-        <CountCard label="Listos" value={stats.ready} hint="para fundir" />
-        <CountCard label="Casi" value={stats.almost} hint="faltan 1 o 2" />
+        <CountCard label="Planos tuyos" value={stats.ownedParts} hint={`de ${stats.partTotal}`} onClick={() => onSearch("all", "owned")} />
+        <CountCard label="Listos" value={stats.ready} hint="para fundir" onClick={() => onSearch("all", "ready")} />
+        <CountCard label="Casi" value={stats.almost} hint="faltan 1 o 2" onClick={() => onSearch("all", "almost")} />
       </section>
 
       <HighlightList
@@ -65,7 +83,7 @@ export function Dashboard({
         items={stats.readyItems}
         total={stats.ready}
         onOpen={onOpen}
-        onSeeAll={stats.ready > stats.readyItems.length ? onSearchReady : undefined}
+        onSeeAll={stats.ready > stats.readyItems.length ? () => onSearch("all", "ready") : undefined}
       />
       <HighlightList
         title="Les falta poco"
@@ -73,6 +91,7 @@ export function Dashboard({
         items={stats.almostItems}
         total={stats.almost}
         onOpen={onOpen}
+        onSeeAll={stats.almost > stats.almostItems.length ? () => onSearch("all", "almost") : undefined}
       />
     </div>
   );
@@ -83,9 +102,26 @@ function percent(value: number, total: number) {
   return Math.round((value / total) * 100);
 }
 
-function BigNumber({ label, value, total, percent: share }: { label: string; value: number; total: number; percent: number }) {
+function BigNumber({
+  label,
+  value,
+  total,
+  percent: share,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  percent: number;
+  onClick: () => void;
+}) {
   return (
-    <article className="rounded-2xl border border-line bg-panel px-4 py-4">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${label}: ${value} de ${total} construidos. Ver la búsqueda.`}
+      className="rounded-2xl border border-line bg-panel px-4 py-4 text-left hover:border-gold"
+    >
       <p className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">{label}</p>
       <p className="mt-2 text-4xl font-medium text-bone">
         {value}
@@ -95,14 +131,19 @@ function BigNumber({ label, value, total, percent: share }: { label: string; val
         <div className="h-full rounded-full bg-gold" style={{ width: `${share}%` }} />
       </div>
       <p className="mt-2 text-xs text-mute">{share}% construido</p>
-    </article>
+    </button>
   );
 }
 
-function SmallMeter({ label, value, total }: { label: string; value: number; total: number }) {
+function SmallMeter({ label, value, total, onClick }: { label: string; value: number; total: number; onClick: () => void }) {
   const share = percent(value, total);
   return (
-    <article className="rounded-2xl border border-line bg-panel/80 px-3 py-3">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${label}: ${value} de ${total} construidas. Ver la búsqueda.`}
+      className="rounded-2xl border border-line bg-panel/80 px-3 py-3 text-left hover:border-gold"
+    >
       <p className="text-[11px] text-mute">{label}</p>
       <p className="mt-1 text-lg text-bone">
         {value}
@@ -111,17 +152,22 @@ function SmallMeter({ label, value, total }: { label: string; value: number; tot
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-line">
         <div className="h-full rounded-full bg-moss" style={{ width: `${share}%` }} />
       </div>
-    </article>
+    </button>
   );
 }
 
-function CountCard({ label, value, hint }: { label: string; value: number; hint: string }) {
+function CountCard({ label, value, hint, onClick }: { label: string; value: number; hint: string; onClick: () => void }) {
   return (
-    <article className="rounded-2xl border border-line bg-ink px-3 py-3">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${label}: ${value}. ${hint}. Ver la búsqueda.`}
+      className="h-full rounded-2xl border border-line bg-ink px-3 py-3 text-left hover:border-gold"
+    >
       <p className="text-[11px] text-mute">{label}</p>
       <p className="mt-1 text-2xl font-medium text-bone">{value}</p>
       <p className="text-[11px] text-mute">{hint}</p>
-    </article>
+    </button>
   );
 }
 

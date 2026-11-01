@@ -14,6 +14,7 @@ import { Gate, LoginScreen } from "./Login.tsx";
 const KIND_FILTERS: Array<{ id: KindFilter; label: string }> = [
   { id: "all", label: "Todo" },
   { id: "warframe", label: "Warframes" },
+  { id: "weapon", label: "Armas" },
   { id: "primary", label: "Primarias" },
   { id: "secondary", label: "Secundarias" },
   { id: "melee", label: "Melee" },
@@ -22,8 +23,15 @@ const KIND_FILTERS: Array<{ id: KindFilter; label: string }> = [
 const STATUS_FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: "missing", label: "Faltan" },
   { id: "ready", label: "Listos para fundir" },
+  { id: "built", label: "Construidos" },
+  { id: "almost", label: "Casi" },
+  { id: "owned", label: "Con planos" },
   { id: "all", label: "Todos" },
 ];
+
+const KINDS: KindFilter[] = ["all", "weapon", "warframe", "primary", "secondary", "melee"];
+const STATUSES: StatusFilter[] = ["missing", "ready", "built", "almost", "owned", "all"];
+const LISTING_STATUSES: StatusFilter[] = ["ready", "built", "almost", "owned"];
 
 function profileForm(profile: Profile) {
   return {
@@ -46,8 +54,26 @@ function pagePath(page: AppPage) {
   return page === "search" ? `${base}/buscar` : `${base}/` || "/";
 }
 
+function readFilters(): { kind: KindFilter; status: StatusFilter } {
+  if (readPage() !== "search") return { kind: "all", status: "missing" };
+  const params = new URLSearchParams(window.location.search);
+  const kind = params.get("tipo");
+  const status = params.get("estado");
+  return {
+    kind: KINDS.includes(kind as KindFilter) ? (kind as KindFilter) : "all",
+    status: STATUSES.includes(status as StatusFilter) ? (status as StatusFilter) : "missing",
+  };
+}
+
+function writeFilters(url: URL, kind: KindFilter, status: StatusFilter) {
+  if (kind === "all") url.searchParams.delete("tipo");
+  else url.searchParams.set("tipo", kind);
+  if (status === "missing") url.searchParams.delete("estado");
+  else url.searchParams.set("estado", status);
+}
+
 function listingRequested(kind: KindFilter, query: string, status: StatusFilter) {
-  return kind !== "all" || query.trim().length >= 2 || status === "ready";
+  return kind !== "all" || query.trim().length >= 2 || LISTING_STATUSES.includes(status);
 }
 
 export function App() {
@@ -63,8 +89,8 @@ export function App() {
   );
   const [page, setPage] = useState<AppPage>(readPage);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("missing");
-  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => readFilters().status);
+  const [kindFilter, setKindFilter] = useState<KindFilter>(() => readFilters().kind);
   const [notice, setNotice] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -236,6 +262,9 @@ export function App() {
   useEffect(() => {
     function onPop() {
       setPage(readPage());
+      const filters = readFilters();
+      setKindFilter(filters.kind);
+      setStatusFilter(filters.status);
       const next = new URLSearchParams(window.location.search).get("item");
       setOpenId(next);
       setDetailLoading(Boolean(next));
@@ -360,10 +389,37 @@ export function App() {
     const url = new URL(window.location.href);
     url.pathname = pagePath(next);
     url.searchParams.delete("item");
+    if (next === "search") writeFilters(url, kindFilter, statusFilter);
+    else {
+      url.searchParams.delete("tipo");
+      url.searchParams.delete("estado");
+    }
     window.history.pushState({}, "", url);
     setPage(next);
     setOpenId(null);
     window.scrollTo({ top: 0 });
+  }
+
+  function openSearch(kind: KindFilter, status: StatusFilter) {
+    setQuery("");
+    setDebouncedQuery("");
+    setKindFilter(kind);
+    setStatusFilter(status);
+    const url = new URL(window.location.href);
+    url.pathname = pagePath("search");
+    url.searchParams.delete("item");
+    writeFilters(url, kind, status);
+    window.history.pushState({}, "", url);
+    setPage("search");
+    setOpenId(null);
+    window.scrollTo({ top: 0 });
+  }
+
+  function rememberFilters(kind: KindFilter, status: StatusFilter) {
+    if (page !== "search") return;
+    const url = new URL(window.location.href);
+    writeFilters(url, kind, status);
+    window.history.replaceState({}, "", url);
   }
 
   function showItem(id: string) {
@@ -507,11 +563,7 @@ export function App() {
             accountName={profile.warframeAccount.trim()}
             mastery={profile.mastery.trim()}
             onOpen={showItem}
-            onSearchReady={() => {
-              setStatusFilter("ready");
-              setKindFilter("all");
-              openPage("search");
-            }}
+            onSearch={openSearch}
           />
           <button
             type="button"
@@ -548,6 +600,7 @@ export function App() {
               label={filter.label}
               onClick={() => {
                 setStatusFilter(filter.id);
+                rememberFilters(kindFilter, filter.id);
                 if (openId) hideItem();
               }}
             />
@@ -561,6 +614,7 @@ export function App() {
               label={filter.label}
               onClick={() => {
                 setKindFilter(filter.id);
+                rememberFilters(filter.id, statusFilter);
                 if (openId) hideItem();
               }}
             />
@@ -570,8 +624,18 @@ export function App() {
         {loadError && <p className="mt-3 text-clay">{loadError}</p>}
         {!listingRequested(kindFilter, debouncedQuery, statusFilter) && (
           <p className="mt-4 text-mute">
-            Elige Warframes, Primarias, Secundarias o Melee, o escribe un nombre. También puedes ver los que están
-            listos para fundir.
+            Elige un tipo o un estado, o escribe un nombre. Desde el tablero, cada cuadro abre aquí el mismo conteo.
+          </p>
+        )}
+        {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && statusFilter === "owned" && stats && (
+          <p className="mt-3 text-sm text-mute">
+            {stats.ownedParts} {stats.ownedParts === 1 ? "plano" : "planos"} en {listTotal}{" "}
+            {listTotal === 1 ? "ítem" : "ítems"}.
+          </p>
+        )}
+        {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && statusFilter !== "owned" && (
+          <p className="mt-3 text-sm text-mute">
+            {listTotal} {listTotal === 1 ? "ítem" : "ítems"}.
           </p>
         )}
         {listLoading && rows.length === 0 && <p className="text-mute">Buscando…</p>}

@@ -551,7 +551,7 @@ export function App() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-16 lg:max-w-6xl lg:px-8 xl:max-w-7xl">
+    <div className={`mx-auto w-full px-4 pb-16 lg:px-8 ${page === "home" ? "max-w-[1600px]" : "max-w-3xl lg:max-w-6xl xl:max-w-7xl"}`}>
       <header className="pt-6 pb-4">
         <div ref={accountMenuRef} className="relative">
           <div className="flex items-start justify-between gap-3">

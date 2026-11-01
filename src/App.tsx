@@ -429,8 +429,7 @@ export function App() {
     const current = collectionRef.current;
     const marking = !current.built.includes(id);
     const builtIds = marking ? [...current.built, id] : current.built.filter((itemId) => itemId !== id);
-    const mastered = marking ? current.mastered : current.mastered.filter((itemId) => itemId !== id);
-    const updated = { ...current, built: builtIds, mastered };
+    const updated = { ...current, built: builtIds };
     collectionRef.current = updated;
     writeAccount(updated);
     if (openItem?.id === id) patchOpenRow({ built: marking });

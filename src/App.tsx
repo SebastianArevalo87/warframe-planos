@@ -418,11 +418,9 @@ export function App() {
     const current = collectionRef.current;
     const marking = !current.mastered.includes(id);
     const mastered = marking ? [...current.mastered, id] : current.mastered.filter((itemId) => itemId !== id);
-    const builtIds = marking && !current.built.includes(id) ? [...current.built, id] : current.built;
-    const updated = { ...current, mastered, built: builtIds };
+    const updated = { ...current, mastered };
     collectionRef.current = updated;
     writeAccount(updated);
-    if (openItem?.id === id && marking) patchOpenRow({ built: true });
   }
 
   function toggleBuilt(id: string) {
@@ -550,33 +548,28 @@ export function App() {
   }
 
   return (
-    <div className={`mx-auto w-full px-4 pb-16 lg:px-8 ${page === "home" ? "max-w-[1600px]" : "max-w-3xl lg:max-w-6xl xl:max-w-7xl"}`}>
-      <header className="pt-6 pb-4">
+    <div className={`mx-auto w-full px-4 pb-16 lg:px-8 ${page === "home" || page === "load" ? "max-w-[1600px]" : "max-w-3xl lg:max-w-6xl xl:max-w-7xl"}`}>
+      <header className="pt-5 pb-4">
         <div ref={accountMenuRef} className="relative">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-              <button type="button" onClick={() => openPage("home")} className="text-left">
-                <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
-                <h1 className="text-3xl font-medium text-bone">Planos</h1>
-              </button>
-              <MasteryBadge mastered={collection.mastered} />
-            </div>
-            <div className="flex items-start gap-3">
-              <button
-                type="button"
-                aria-expanded={accountOpen}
-                aria-controls="cuenta-menu"
-                onClick={() => setAccountOpen((open) => !open)}
-                className="flex max-w-40 items-center gap-2 rounded-full border border-line bg-panel py-1.5 pr-3 pl-1.5 text-sm text-bone hover:border-gold"
-              >
-                {session?.picture ? (
-                  <img src={session.picture} alt="" className="h-7 w-7 rounded-full" />
-                ) : (
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-xs text-gold">WF</span>
-                )}
-                <span className="truncate">{profile.warframeAccount.trim() || "Cuenta"}</span>
-              </button>
-            </div>
+            <button type="button" onClick={() => openPage("home")} className="text-left">
+              <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
+              <p className="text-sm text-mute">Planos</p>
+            </button>
+            <button
+              type="button"
+              aria-expanded={accountOpen}
+              aria-controls="cuenta-menu"
+              onClick={() => setAccountOpen((open) => !open)}
+              className="flex max-w-40 items-center gap-2 rounded-full border border-line bg-panel py-1.5 pr-3 pl-1.5 text-sm text-bone hover:border-gold"
+            >
+              {session?.picture ? (
+                <img src={session.picture} alt="" className="h-7 w-7 rounded-full" />
+              ) : (
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-xs text-gold">WF</span>
+              )}
+              <span className="truncate">{profile.warframeAccount.trim() || "Cuenta"}</span>
+            </button>
           </div>
           {accountOpen && (
             <div
@@ -612,12 +605,15 @@ export function App() {
             </div>
           )}
         </div>
-        <nav className="mt-4 flex flex-wrap gap-2" aria-label="Secciones">
-          <PageTab active={page === "home"} label="Tablero" onClick={() => openPage("home")} />
-          <PageTab active={page === "search"} label="Buscar" onClick={() => openPage("search")} />
-          <PageTab active={page === "load"} label="Cargar" onClick={() => openPage("load")} />
-          <PageTab active={page === "sell"} label="Vender" onClick={() => openPage("sell")} />
-        </nav>
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+          <nav className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1" aria-label="Secciones">
+            <PageHeading active={page === "home"} label="Tablero" onClick={() => openPage("home")} />
+            <PageHeading active={page === "search"} label="Buscar" onClick={() => openPage("search")} />
+            <PageHeading active={page === "load"} label="Cargar" onClick={() => openPage("load")} />
+            <PageHeading active={page === "sell"} label="Vender" onClick={() => openPage("sell")} />
+          </nav>
+          <MasteryBadge mastered={collection.mastered} />
+        </div>
         {notice && <p className="mt-3 text-sm text-mute">{notice}</p>}
       </header>
 
@@ -757,17 +753,13 @@ export function App() {
   );
 }
 
-function PageTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function PageHeading({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      className={
-        active
-          ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink"
-          : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"
-      }
+      className={active ? "text-3xl font-medium text-bone" : "text-sm text-mute hover:text-bone"}
     >
       {label}
     </button>

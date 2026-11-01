@@ -170,28 +170,26 @@ export function LoadPage({
 
   return (
     <div>
-      <div className="mb-4 flex gap-2" role="tablist" aria-label="Qué vas a cargar">
+      <div className="mb-3 flex items-baseline gap-4">
         <button
           type="button"
-          role="tab"
-          aria-selected={mode === "parts"}
+          aria-current={mode === "parts" ? "page" : undefined}
           onClick={() => {
             setMode("parts");
             window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
           }}
-          className={mode === "parts" ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink" : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"}
+          className={mode === "parts" ? "text-2xl font-medium text-bone" : "text-sm text-mute hover:text-bone"}
         >
           Planos
         </button>
         <button
           type="button"
-          role="tab"
-          aria-selected={mode === "mastered"}
+          aria-current={mode === "mastered" ? "page" : undefined}
           onClick={() => {
             setMode("mastered");
             window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#dominados`);
           }}
-          className={mode === "mastered" ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink" : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"}
+          className={mode === "mastered" ? "text-2xl font-medium text-bone" : "text-sm text-mute hover:text-bone"}
         >
           Dominados
         </button>
@@ -200,77 +198,52 @@ export function LoadPage({
         <MasteryPage mastered={mastered} onToggle={onToggleMastered} />
       ) : (
         <>
-      <p className="text-sm text-mute">Marca lo que ya tienes. Las pestañas siguen el orden de la fundición.</p>
-      {error && <p className="mt-3 text-clay">{error}</p>}
-      {loading && <p className="mt-4 text-mute">Abriendo las piezas…</p>}
+      {error && <p className="text-clay">{error}</p>}
+      {loading && <p className="text-mute">Abriendo las piezas…</p>}
       {!loading && !error && (
         <>
-          <div className="z-10 -mx-4 mt-3 bg-ink/95 px-4 py-3 backdrop-blur-md lg:sticky lg:top-0 lg:-mx-8 lg:px-8">
-            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Pestaña de la fundición">
-              {groups.map((entry) => {
-                const done = entry.total > 0 && entry.owned === entry.total;
-                const selected = entry.id === group;
-                return (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={selected}
-                    onClick={() => setGroup(entry.id)}
-                    className={
-                      selected
-                        ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink"
-                        : done
-                          ? "rounded-full border border-moss/40 px-3 py-1.5 text-sm text-moss"
-                          : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"
-                    }
-                  >
-                    {entry.label}
-                    <span className="ml-1 tabular-nums opacity-70">
-                      {entry.owned}/{entry.total}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1" role="tablist" aria-label="Tipo de pieza">
-              {types.map((entry) => {
-                const done = entry.total > 0 && entry.owned === entry.total;
-                const selected = entry.short === activeType;
-                return (
-                  <button
-                    key={entry.short}
-                    type="button"
-                    role="tab"
-                    aria-selected={selected}
-                    onClick={() => setType(entry.short)}
-                    className={
-                      selected
-                        ? "rounded-lg bg-gold/20 px-2.5 py-1 text-sm text-gold"
-                        : done
-                          ? "rounded-lg px-2.5 py-1 text-sm text-moss hover:bg-panel"
-                          : "rounded-lg px-2.5 py-1 text-sm text-mute hover:bg-panel hover:text-bone"
-                    }
-                  >
-                    {entry.short}
-                    <span className="ml-1 tabular-nums opacity-70">
-                      {entry.owned}/{entry.total}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-3 flex items-center gap-3">
-              <label className="min-w-0 flex-1">
+          <div className="z-10 -mx-4 bg-ink/95 px-4 py-2 backdrop-blur-md lg:sticky lg:top-0 lg:-mx-8 lg:px-8">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,16rem)_minmax(0,18rem)_minmax(0,1fr)_auto] lg:items-center">
+              <label className="min-w-0">
+                <span className="sr-only">Categoría</span>
+                <select
+                  aria-label="Categoría"
+                  value={group}
+                  onChange={(event) => setGroup(event.target.value as GroupId)}
+                  className={FIELD}
+                >
+                  {groups.map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.label} {entry.owned}/{entry.total}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="min-w-0">
+                <span className="sr-only">Tipo de pieza</span>
+                <select
+                  aria-label="Tipo de pieza"
+                  value={activeType}
+                  onChange={(event) => setType(event.target.value)}
+                  className={FIELD}
+                >
+                  {types.map((entry) => (
+                    <option key={entry.short} value={entry.short}>
+                      {entry.short} {entry.owned}/{entry.total}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="min-w-0 sm:col-span-2 lg:col-span-1">
                 <span className="sr-only">Filtra esta lista</span>
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Filtra esta lista"
-                  className="w-full rounded-full border border-line bg-panel px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
+                  className={FIELD}
                 />
               </label>
-              <p className="shrink-0 text-sm text-mute tabular-nums">
+              <p className="text-sm text-mute tabular-nums lg:text-right">
                 {ownedVisible}/{visible.length}
               </p>
             </div>
@@ -283,32 +256,34 @@ export function LoadPage({
             {sections.map((section) => (
               <section key={section.letter}>
                 <h2 className="mt-4 text-xs font-medium tracking-[0.16em] text-gold uppercase">{section.letter}</h2>
-                <ul className="lg:grid lg:grid-cols-2 lg:gap-x-8">
+                <ul className="grid grid-cols-1 gap-x-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {section.rows.map((row) => {
                     const amount = qty[row.partId] ?? 0;
                     const owned = amount > 0;
                     return (
-                      <li key={`${row.itemId}:${row.partId}`} className="border-t border-line/40">
-                        <div className={`flex min-w-0 items-center gap-3 py-2 ${owned ? "opacity-55" : ""}`}>
-                          <input
-                            type="checkbox"
-                            checked={owned}
-                            onChange={() => onToggle(row.partId, owned ? 0 : 1)}
-                            aria-label={`${owned ? "Quitar" : "Marcar"} ${row.title}`}
-                            className="h-5 w-5 shrink-0 accent-[#e0b15a]"
-                          />
+                      <li key={`${row.itemId}:${row.partId}`} className={`flex min-w-0 items-center border-t border-line/40 ${owned ? "opacity-60" : ""}`}>
+                        <button
+                          type="button"
+                          aria-pressed={owned}
+                          aria-label={`${owned ? "Quitar" : "Marcar"} ${row.title}`}
+                          onClick={() => onToggle(row.partId, owned ? 0 : 1)}
+                          className="grid h-9 w-9 shrink-0 place-items-center"
+                        >
+                          <OwnedMark on={owned} />
+                        </button>
+                        <button type="button" onClick={() => onOpen(row.itemId)} className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left">
                           {row.image && (
-                            <img src={row.image} alt="" width={36} height={36} className="h-9 w-9 shrink-0 object-contain" />
+                            <img src={row.image} alt="" width={32} height={32} className="h-8 w-8 shrink-0 object-contain" />
                           )}
-                          <button type="button" onClick={() => onOpen(row.itemId)} className="min-w-0 flex-1 py-1 text-left">
+                          <span className="min-w-0">
                             <span className="block truncate text-sm text-bone">{row.itemName}</span>
                             <span className="block truncate text-xs text-mute">
                               {KIND_LABEL[row.kind]}
                               {row.short !== "Plano" ? ` · ${row.short}` : ""}
                               {amount > 1 ? ` · ${amount}` : ""}
                             </span>
-                          </button>
-                        </div>
+                          </span>
+                        </button>
                       </li>
                     );
                   })}
@@ -321,5 +296,27 @@ export function LoadPage({
         </>
       )}
     </div>
+  );
+}
+
+const FIELD =
+  "w-full min-w-0 rounded-full border border-line bg-panel px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold";
+
+function OwnedMark({ on }: { on: boolean }) {
+  return (
+    <span
+      className={
+        on
+          ? "grid h-5 w-5 shrink-0 place-items-center rounded-full bg-gold text-ink"
+          : "h-5 w-5 shrink-0 rounded-full border border-line"
+      }
+      aria-hidden="true"
+    >
+      {on && (
+        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4">
+          <path d="M3.5 8.2 6.4 11 12.5 4.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </span>
   );
 }

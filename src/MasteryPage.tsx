@@ -76,52 +76,40 @@ export function MasteryPage({
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-mute">Rango 30. El orden es el del perfil, por nombre.</p>
+        <p className="max-w-xl text-sm text-mute">Rango 30, por nombre. Sigue dominado si lo vendiste o lo entregaste al Helminth.</p>
         <MasteryMark xp={masteryXp(rows, mastered)} ready={!loading} />
       </div>
       {error && <p className="mt-3 text-clay">{error}</p>}
       {loading && <p className="mt-4 text-mute">Abriendo el equipo…</p>}
       {!loading && !error && (
         <>
-          <div className="z-10 -mx-4 mt-3 bg-ink/95 px-4 py-3 backdrop-blur-md lg:sticky lg:top-0 lg:-mx-8 lg:px-8">
-            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Categoría del perfil">
-              {groups.map((entry) => {
-                const selected = entry.id === group;
-                const complete = entry.total > 0 && entry.owned === entry.total;
-                return (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={selected}
-                    onClick={() => setGroup(entry.id)}
-                    className={
-                      selected
-                        ? "rounded-full bg-bone px-3 py-1.5 text-sm text-ink"
-                        : complete
-                          ? "rounded-full border border-moss/40 px-3 py-1.5 text-sm text-moss"
-                          : "rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone"
-                    }
-                  >
-                    {entry.label}
-                    <span className="ml-1 tabular-nums opacity-70">
-                      {entry.owned}/{entry.total}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-3 flex items-center gap-3">
-              <label className="min-w-0 flex-1">
+          <div className="z-10 -mx-4 mt-3 bg-ink/95 px-4 py-2 backdrop-blur-md lg:sticky lg:top-0 lg:-mx-8 lg:px-8">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,16rem)_minmax(0,1fr)_auto] sm:items-center">
+              <label className="min-w-0">
+                <span className="sr-only">Categoría</span>
+                <select
+                  aria-label="Categoría"
+                  value={group}
+                  onChange={(event) => setGroup(event.target.value as GroupId)}
+                  className="w-full min-w-0 rounded-full border border-line bg-panel px-3 py-2 text-sm text-bone outline-none focus:border-gold"
+                >
+                  {groups.map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.label} {entry.owned}/{entry.total}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="min-w-0">
                 <span className="sr-only">Busca en esta lista</span>
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Busca en esta lista"
-                  className="w-full rounded-full border border-line bg-panel px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
+                  className="w-full min-w-0 rounded-full border border-line bg-panel px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
                 />
               </label>
-              <p className="shrink-0 text-sm text-bone tabular-nums">
+              <p className="text-sm text-bone tabular-nums sm:text-right">
                 Completado {ownedVisible}/{visible.length}
               </p>
             </div>

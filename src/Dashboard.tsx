@@ -87,17 +87,51 @@ export function Dashboard({
   const weaponPercent = percent(stats.weapons, stats.weaponTotal);
 
   return (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-      <WorldPanel world={world} error={worldError} known={known} onOpen={onOpen} />
-      <MasteryHelp
-        targets={targets}
-        shared={shared}
-        pending={pending}
-        partsReady={parts !== null}
-        onOpen={onOpen}
-        onMastered={onMastered}
-      />
-      <section className="flex flex-col gap-3 lg:col-span-5">
+    <div className="flex flex-col gap-8">
+      <section>
+        <h2 className="text-xl font-medium text-bone">Farmeo</h2>
+        <p className="mt-1 text-sm text-mute">Lo marcas a mano. Aquí está lo que te acerca a la siguiente maestría.</p>
+        <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="lg:col-span-7">
+            <MasteryHelp targets={targets} shared={shared} partsReady={parts !== null} onOpen={onOpen} />
+          </div>
+          <div className="flex flex-col gap-6 lg:col-span-5">
+            <HighlightList
+              title="Listos para fundir"
+              empty="Cuando tengas todos los planos de un ítem, aparece aquí."
+              items={stats.readyItems}
+              total={stats.ready}
+              onOpen={onOpen}
+              onSeeAll={stats.ready > stats.readyItems.length ? () => onSearch("all", "ready") : undefined}
+            />
+            <HighlightList
+              title="Les falta poco"
+              empty="Todavía no hay ítems a uno o dos planos de estar listos."
+              items={stats.almostItems}
+              total={stats.almost}
+              onOpen={onOpen}
+              onSeeAll={stats.almost > stats.almostItems.length ? () => onSearch("all", "almost") : undefined}
+            />
+          </div>
+        </div>
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="lg:col-span-8">
+            <LevelList pending={pending} gearReady={gear !== null} onOpen={onOpen} onMastered={onMastered} />
+          </div>
+          <div className="flex flex-col gap-2 lg:col-span-4">
+            {world ? (
+              <>
+                <ChoiceList title="Circuito" hint="Esta semana" names={world.circuit} known={known} onOpen={onOpen} />
+                <ChoiceList title="Incarnon" hint="Circuito de acero" names={world.incarnon} known={known} onOpen={onOpen} />
+              </>
+            ) : (
+              <p className="text-sm text-mute">{worldError ? "Sin el circuito de esta semana." : "Leyendo el circuito…"}</p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-bone">
           Tu equipo
           {accountName ? <span className="ml-2 font-normal text-mute">{accountName}</span> : null}
@@ -136,26 +170,8 @@ export function Dashboard({
           <CountCard label="Casi" value={stats.almost} hint="faltan 1 o 2" onClick={() => onSearch("all", "almost")} />
         </div>
       </section>
-      <div className="lg:col-span-6">
-        <HighlightList
-          title="Listos para fundir"
-          empty="Cuando tengas todos los planos de un ítem, aparece aquí."
-          items={stats.readyItems}
-          total={stats.ready}
-          onOpen={onOpen}
-          onSeeAll={stats.ready > stats.readyItems.length ? () => onSearch("all", "ready") : undefined}
-        />
-      </div>
-      <div className="lg:col-span-6">
-        <HighlightList
-          title="Les falta poco"
-          empty="Todavía no hay ítems a uno o dos planos de estar listos."
-          items={stats.almostItems}
-          total={stats.almost}
-          onOpen={onOpen}
-          onSeeAll={stats.almost > stats.almostItems.length ? () => onSearch("all", "almost") : undefined}
-        />
-      </div>
+
+      <WorldPanel world={world} error={worldError} />
     </div>
   );
 }
@@ -313,46 +329,25 @@ function HighlightList({
   );
 }
 
-function WorldPanel({
-  world,
-  error,
-  known,
-  onOpen,
-}: {
-  world: WorldNow | null;
-  error: string;
-  known: Map<string, { id: string; mastered: boolean }>;
-  onOpen: (id: string) => void;
-}) {
+function WorldPanel({ world, error }: { world: WorldNow | null; error: string }) {
+  const alerts = world?.alerts.slice(0, 2) ?? [];
+  const events = world?.events.slice(0, 2) ?? [];
+  const hiddenAlerts = (world?.hiddenAlerts ?? 0) + Math.max(0, (world?.alerts.length ?? 0) - alerts.length);
   return (
-    <section className="grid grid-cols-1 gap-3 lg:col-span-12 lg:grid-cols-12">
-      <div className="flex items-baseline justify-between gap-3 lg:col-span-12">
-        <h2 className="text-sm font-medium text-bone">Ahora</h2>
-        {error && <p className="text-sm text-clay">{error}</p>}
-        {!world && !error && <p className="text-sm text-mute">Leyendo el sistema…</p>}
+    <section className="border-t border-line pt-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-[11px] font-medium tracking-[0.16em] text-mute uppercase">Sistema</h2>
+        {error && <p className="text-xs text-clay">{error}</p>}
+        {!world && !error && <p className="text-xs text-mute">Leyendo el sistema…</p>}
       </div>
       {world && (
         <>
-          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:col-span-12 lg:grid-cols-5">
-            {world.cycles.map((entry) => (
-              <li key={entry.label} className="rounded-xl border border-line bg-panel px-3 py-2">
-                <p className="text-[11px] tracking-[0.14em] text-mute uppercase">{entry.label}</p>
-                <p className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm text-bone">{entry.state}</span>
-                  <span className="text-[11px] text-gold">{entry.timeLeft}</span>
-                </p>
-              </li>
-            ))}
-          </ul>
-          <div className="lg:col-span-5">
-            <NoticeList title="Alertas" empty="No hay alertas activas." notices={world.alerts} extra={world.hiddenAlerts} />
-          </div>
-          <div className="lg:col-span-4">
-            <NoticeList title="Eventos" empty="No hay eventos activos." notices={world.events} extra={0} />
-          </div>
-          <div className="flex flex-col gap-2 lg:col-span-3">
-            <ChoiceList title="Circuito" hint="Esta semana" names={world.circuit} known={known} onOpen={onOpen} />
-            <ChoiceList title="Incarnon" hint="Circuito de acero" names={world.incarnon} known={known} onOpen={onOpen} />
+          <p className="mt-2 text-xs text-mute">
+            {world.cycles.map((entry) => `${entry.label} ${entry.state} · ${entry.timeLeft}`).join("   ")}
+          </p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <NoticeList title="Alertas" empty="No hay alertas activas." notices={alerts} extra={hiddenAlerts} />
+            <NoticeList title="Eventos" empty="No hay eventos activos." notices={events} extra={Math.max(0, world.events.length - events.length)} />
           </div>
         </>
       )}
@@ -423,7 +418,55 @@ function NoticeList({ title, empty, notices, extra }: { title: string; empty: st
               {notice.detail && <span className="block truncate text-xs text-mute">{notice.detail}</span>}
             </li>
           ))}
-          {extra > 0 && <li className="text-xs text-mute">{extra === 1 ? "Y 1 alerta más." : `Y ${extra} alertas más.`}</li>}
+          {extra > 0 && <li className="text-xs text-mute">{extra === 1 ? "Y 1 más." : `Y ${extra} más.`}</li>}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function LevelList({
+  pending,
+  gearReady,
+  onOpen,
+  onMastered,
+}: {
+  pending: Array<MasteryRow & { xp: number }>;
+  gearReady: boolean;
+  onOpen: (id: string) => void;
+  onMastered: () => void;
+}) {
+  const names = useNames();
+  const shown = pending.slice(0, 8);
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
+        <h3 className="text-sm font-medium text-bone">Sin dominar</h3>
+        {pending.length > shown.length && (
+          <button type="button" onClick={onMastered} className="text-sm text-gold">
+            Ver los {pending.length}
+          </button>
+        )}
+      </div>
+      {!gearReady && <p className="text-sm text-mute">Revisando lo que ya construiste…</p>}
+      {gearReady && shown.length === 0 && <p className="text-sm text-mute">No tienes equipo construido pendiente de rango 30.</p>}
+      {shown.length > 0 && (
+        <ul className="grid gap-1.5 sm:grid-cols-2">
+          {shown.map((item) => (
+            <li key={item.id}>
+              <button
+                type="button"
+                onClick={() => onOpen(item.id)}
+                className="flex w-full items-center gap-2 rounded-xl border border-line bg-ink px-2 py-1.5 text-left hover:border-gold"
+              >
+                {item.image && <img src={item.image} alt="" className="h-8 w-8 shrink-0 rounded-lg bg-panel object-contain" />}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-bone">{names.item(item.id, item.name)}</span>
+                  <span className="text-xs text-mute">{KIND_LABEL[item.kind]} · {formatMastery(item.xp)} al rango 30</span>
+                </span>
+              </button>
+            </li>
+          ))}
         </ul>
       )}
     </div>
@@ -433,24 +476,19 @@ function NoticeList({ title, empty, notices, extra }: { title: string; empty: st
 function MasteryHelp({
   targets,
   shared,
-  pending,
   partsReady,
   onOpen,
-  onMastered,
 }: {
   targets: RelicTarget[];
   shared: Array<{ name: string; count: number }>;
-  pending: Array<MasteryRow & { xp: number }>;
   partsReady: boolean;
   onOpen: (id: string) => void;
-  onMastered: () => void;
 }) {
   const names = useNames();
-  const shown = pending.slice(0, 4);
   return (
-    <section className="lg:col-span-7">
-      <h2 className="text-sm font-medium text-bone">Para subir</h2>
-      <p className="text-xs text-mute">Reliquias de lo que falta poco, y lo que ya puedes llevar a 30.</p>
+    <div>
+      <h3 className="text-sm font-medium text-bone">Reliquias</h3>
+      <p className="text-xs text-mute">Objetos sin dominar a los que les falta uno o dos planos.</p>
       {!partsReady && <p className="mt-3 text-sm text-mute">Buscando reliquias…</p>}
       {partsReady && targets.length === 0 && (
         <p className="mt-3 text-sm text-mute">
@@ -495,35 +533,6 @@ function MasteryHelp({
           ))}
         </ul>
       )}
-      {shown.length > 0 && (
-        <div className="mt-5">
-          <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
-            <h3 className="text-sm font-medium text-bone">Ya construidos, sin dominar</h3>
-            {pending.length > shown.length && (
-              <button type="button" onClick={onMastered} className="text-sm text-gold">
-                Ver los {pending.length}
-              </button>
-            )}
-          </div>
-          <ul className="grid gap-1.5 sm:grid-cols-2">
-            {shown.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(item.id)}
-                  className="flex w-full items-center gap-2 rounded-xl border border-line bg-ink px-2 py-1.5 text-left hover:border-gold"
-                >
-                  {item.image && <img src={item.image} alt="" className="h-8 w-8 shrink-0 rounded-lg bg-panel object-contain" />}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-bone">{names.item(item.id, item.name)}</span>
-                    <span className="text-xs text-mute">{KIND_LABEL[item.kind]} · {formatMastery(item.xp)} al rango 30</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </section>
+    </div>
   );
 }

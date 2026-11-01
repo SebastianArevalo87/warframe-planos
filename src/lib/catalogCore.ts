@@ -1,6 +1,7 @@
 import type { Catalog, CatalogItem, CatalogPart, ItemKind, PartRelic } from "../types.ts";
 import { indexRecipes, materialsForPart, type RawRecipe, type RecipeBook } from "./materials.ts";
 import { indexRelicDrops, relicKey, type RawRelic } from "./relics.ts";
+import { fillPublishedGaps } from "./publishedGaps.ts";
 
 export type RawComponent = {
   name?: string;
@@ -483,6 +484,7 @@ export function buildCatalog(
       const partIds = new Set(parts.map((part) => part.id));
       for (const part of parts) {
         part.materials = part.materials.filter((material) => material.id === "credits" || !partIds.has(material.id));
+        fillPublishedGaps(part);
       }
 
       parts.sort((a, b) => {

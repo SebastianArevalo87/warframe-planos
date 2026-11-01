@@ -5,9 +5,8 @@ import { craftKey, emptyCollection, withAmount } from "./lib/collection.ts";
 import { loadProfile, masteryValue, saveProfile, type Profile, type Session } from "./lib/account.ts";
 import { loadOrCreateRemote, saveRemoteAccount } from "./lib/remote.ts";
 import { sessionFromUser, supabase, supabaseEnabled } from "./lib/supabase.ts";
-import { fetchDashboard, fetchItemDetail, fetchItemList, fetchSellStock, storeCatalog, type DashboardStats, type ItemSummary, type SellRow } from "./lib/catalogRemote.ts";
+import { fetchDashboard, fetchItemDetail, fetchItemList, fetchSellStock, type DashboardStats, type ItemSummary, type SellRow } from "./lib/catalogRemote.ts";
 import { fetchPrices, type PriceQuote } from "./lib/market.ts";
-import { refreshCatalog } from "./lib/refreshCatalog.ts";
 import { Dashboard } from "./Dashboard.tsx";
 import { SellPage } from "./SellPage.tsx";
 import { LoadPage } from "./LoadPage.tsx";
@@ -92,7 +91,6 @@ export function App() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => readFilters().status);
   const [kindFilter, setKindFilter] = useState<KindFilter>(() => readFilters().kind);
   const [notice, setNotice] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [rows, setRows] = useState<ItemSummary[]>([]);
@@ -102,7 +100,6 @@ export function App() {
   const listRequest = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [savedTick, setSavedTick] = useState(0);
-  const [listReload, setListReload] = useState(0);
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [sellRows, setSellRows] = useState<SellRow[]>([]);
   const [sellLoading, setSellLoading] = useState(false);
@@ -196,7 +193,7 @@ export function App() {
         if (!cancelled) setStats(next);
       })
       .catch(() => {
-        if (!cancelled) setLoadError("No pude abrir el tablero.");
+        if (!cancelled) setLoadError("No pude abrir el farmeo.");
       });
     return () => {
       cancelled = true;
@@ -262,7 +259,7 @@ export function App() {
       .finally(() => {
         if (listRequest.current === request) setListLoading(false);
       });
-  }, [accountReady, foundersVisible, kindFilter, debouncedQuery, statusFilter, listReload, page]);
+  }, [accountReady, foundersVisible, kindFilter, debouncedQuery, statusFilter, page]);
 
   const hasMore = rows.length < listTotal;
 
@@ -513,27 +510,6 @@ export function App() {
     setOpenId(null);
   }
 
-  async function updateList() {
-    setRefreshing(true);
-    setNotice("");
-    try {
-      const next = await refreshCatalog();
-      const added = await storeCatalog(next);
-      setStats(await fetchDashboard());
-      setListReload((tick) => tick + 1);
-      setSavedTick((tick) => tick + 1);
-      setNotice(
-        added > 0
-          ? `Se agregaron ${added} ${added === 1 ? "entrada nueva" : "entradas nuevas"}.`
-          : "La lista ya estaba al día.",
-      );
-    } catch {
-      setNotice("No pude actualizar la lista. La que ya tienes sigue igual.");
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
   const accountHint =
     profile.warframeAccount.trim() !== "" && !/^.+#\d+$/.test(profile.warframeAccount.trim())
       ? "Escríbela como en el juego: Nombre#1234"
@@ -642,10 +618,10 @@ export function App() {
             </div>
           </div>
         </div>
-        <nav className="mt-5 flex flex-wrap gap-x-6 border-b border-line" aria-label="Secciones">
-          <PageLink active={page === "home"} label="Tablero" onClick={() => openPage("home")} />
+        <nav className="mt-5 mb-6 flex flex-wrap gap-x-6 border-b border-line" aria-label="Secciones">
+          <PageLink active={page === "home"} label="Farmeo" onClick={() => openPage("home")} />
           <PageLink active={page === "search"} label="Buscar" onClick={() => openPage("search")} />
-          <PageLink active={page === "load"} label="Cargar" onClick={() => openPage("load")} />
+          <PageLink active={page === "load"} label="Marcar" onClick={() => openPage("load")} />
           <PageLink active={page === "sell"} label="Vender" onClick={() => openPage("sell")} />
         </nav>
         {notice && <p className="mt-3 text-sm text-mute">{notice}</p>}
@@ -666,16 +642,8 @@ export function App() {
               openPage("load");
             }}
           />
-          <button
-            type="button"
-            onClick={() => void updateList()}
-            disabled={refreshing}
-            className="self-start rounded-full border border-line px-3 py-2 text-sm text-bone hover:border-gold disabled:opacity-50"
-          >
-            {refreshing ? "Actualizando…" : "Actualizar lista"}
-          </button>
           {stats?.sourceVersion && (
-            <p className="-mt-3 text-xs text-mute/80">Catálogo {stats.sourceVersion}</p>
+            <p className="text-xs text-mute/80">Catálogo {stats.sourceVersion}</p>
           )}
         </div>
       ) : page === "load" ? (
@@ -722,7 +690,7 @@ export function App() {
         {loadError && <p className="mt-3 text-clay">{loadError}</p>}
         {!listingRequested(kindFilter, debouncedQuery, statusFilter) && (
           <p className="mt-4 text-mute">
-            Elige un tipo o un estado, o escribe un nombre. Desde el tablero, cada cuadro abre aquí el mismo conteo.
+            Elige un tipo o un estado, o escribe un nombre. Desde Farmeo, cada cuadro abre aquí el mismo conteo.
           </p>
         )}
         {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && statusFilter === "owned" && stats && (

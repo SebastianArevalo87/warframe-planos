@@ -81,7 +81,7 @@ export function Dashboard({
     return byName;
   }, [collection.mastered, gear]);
 
-  if (!stats) return <p className="text-mute">Abriendo el tablero…</p>;
+  if (!stats) return <p className="text-mute">Abriendo el farmeo…</p>;
 
   const framePercent = percent(stats.frames, stats.frameTotal);
   const weaponPercent = percent(stats.weapons, stats.weaponTotal);
@@ -492,7 +492,7 @@ function MasteryHelp({
       {!partsReady && <p className="mt-3 text-sm text-mute">Buscando reliquias…</p>}
       {partsReady && targets.length === 0 && (
         <p className="mt-3 text-sm text-mute">
-          Marca en Cargar los planos que ya tienes. Si a un objeto sin dominar le faltan uno o dos, aquí sale la reliquia.
+          En Marcar anota los planos que ya tienes. Si a un objeto sin dominar le faltan uno o dos, aquí sale la reliquia.
         </p>
       )}
       {shared.length > 0 && (

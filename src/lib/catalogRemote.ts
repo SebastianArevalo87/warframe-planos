@@ -185,17 +185,6 @@ function asMaterials(value: unknown): CraftMaterial[] {
   });
 }
 
-export async function fetchMaterialTotals(kind: string, query: string, status: string): Promise<CraftMaterial[]> {
-  if (!supabase) throw new Error("supabase");
-  const { data, error } = await supabase.rpc("material_totals", {
-    p_kind: kind,
-    p_query: query,
-    p_status: status,
-  });
-  if (error) throw error;
-  return asMaterials(data);
-}
-
 export async function fetchItemDetail(id: string): Promise<CatalogItem | null> {
   if (!supabase) throw new Error("supabase");
   const { data, error } = await supabase.rpc("item_detail", { p_id: id });

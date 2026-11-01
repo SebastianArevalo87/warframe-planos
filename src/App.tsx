@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CatalogItem, Collection, CraftMaterial, KindFilter, StatusFilter } from "./types.ts";
+import type { CatalogItem, Collection, KindFilter, StatusFilter } from "./types.ts";
 import { loadCollection, saveCollection } from "./lib/storage.ts";
 import { craftKey, emptyCollection, withAmount } from "./lib/collection.ts";
 import { loadProfile, masteryValue, saveProfile, type Profile, type Session } from "./lib/account.ts";
 import { loadOrCreateRemote, saveRemoteAccount } from "./lib/remote.ts";
 import { sessionFromUser, supabase, supabaseEnabled } from "./lib/supabase.ts";
-import { fetchDashboard, fetchItemDetail, fetchItemList, fetchMaterialTotals, fetchSellStock, storeCatalog, type DashboardStats, type ItemSummary, type SellRow } from "./lib/catalogRemote.ts";
+import { fetchDashboard, fetchItemDetail, fetchItemList, fetchSellStock, storeCatalog, type DashboardStats, type ItemSummary, type SellRow } from "./lib/catalogRemote.ts";
 import { fetchPrices, type PriceQuote } from "./lib/market.ts";
 import { refreshCatalog } from "./lib/refreshCatalog.ts";
 import { Dashboard } from "./Dashboard.tsx";
 import { SellPage } from "./SellPage.tsx";
 import { FilterBar } from "./FilterBar.tsx";
-import { MaterialTotals } from "./MaterialTotals.tsx";
 import { ItemCard, ItemTile } from "./ItemCard.tsx";
 import { Gate, LoginScreen } from "./Login.tsx";
 
@@ -99,8 +98,6 @@ export function App() {
   const [sellError, setSellError] = useState("");
   const [prices, setPrices] = useState<Record<string, PriceQuote | null>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
-  const [materialTotals, setMaterialTotals] = useState<CraftMaterial[]>([]);
-  const [materialsLoading, setMaterialsLoading] = useState(false);
   const [openId, setOpenId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("item"));
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(() => Boolean(new URLSearchParams(window.location.search).get("item")));
@@ -252,32 +249,6 @@ export function App() {
         if (listRequest.current === request) setListLoading(false);
       });
   }, [accountReady, kindFilter, debouncedQuery, statusFilter, listReload, page]);
-
-  useEffect(() => {
-    if (!accountReady || !supabaseEnabled || page !== "search" || statusFilter === "built") {
-      setMaterialTotals([]);
-      return;
-    }
-    if (!listingRequested(kindFilter, debouncedQuery, statusFilter)) {
-      setMaterialTotals([]);
-      return;
-    }
-    let cancelled = false;
-    setMaterialsLoading(true);
-    void fetchMaterialTotals(kindFilter, debouncedQuery.trim(), statusFilter)
-      .then((totals) => {
-        if (!cancelled) setMaterialTotals(totals);
-      })
-      .catch(() => {
-        if (!cancelled) setMaterialTotals([]);
-      })
-      .finally(() => {
-        if (!cancelled) setMaterialsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [accountReady, kindFilter, debouncedQuery, statusFilter, page, savedTick]);
 
   const hasMore = rows.length < listTotal;
 
@@ -693,19 +664,6 @@ export function App() {
           <p className="mt-3 text-sm text-mute">
             {listTotal} {listTotal === 1 ? "ítem" : "ítems"}.
           </p>
-        )}
-        {listingRequested(kindFilter, debouncedQuery, statusFilter) && statusFilter !== "built" && (
-          <div className="mt-4">
-            {materialsLoading && materialTotals.length === 0 ? (
-              <p className="text-sm text-mute">Sumando materiales…</p>
-            ) : (
-              <MaterialTotals
-                title="Materiales para construir"
-                note="Costo de los ítems de esta búsqueda que todavía no construiste, sin las piezas ya construidas."
-                materials={materialTotals}
-              />
-            )}
-          </div>
         )}
         {listLoading && rows.length === 0 && <p className="text-mute">Buscando…</p>}
         {listingRequested(kindFilter, debouncedQuery, statusFilter) && !listLoading && rows.length === 0 && (

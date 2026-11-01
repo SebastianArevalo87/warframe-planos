@@ -199,6 +199,64 @@ function asMaterials(value: unknown): CraftMaterial[] {
   });
 }
 
+export type LoadRow = {
+  itemId: string;
+  itemName: string;
+  image: string | null;
+  kind: ItemKind;
+  partId: string;
+  short: string;
+  title: string;
+};
+
+export async function fetchLoadIndex(): Promise<LoadRow[]> {
+  if (!supabase) throw new Error("supabase");
+  const rows: LoadRow[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("catalog_parts")
+      .select("id, short, title, item_id, catalog_items(name, image, kind)")
+      .order("item_id")
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as unknown[];
+    for (const entry of batch) {
+      const row = asLoadRow(entry);
+      if (row) rows.push(row);
+    }
+    if (batch.length < pageSize) break;
+  }
+  return rows;
+}
+
+function asLoadRow(value: unknown): LoadRow | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as {
+    id?: unknown;
+    short?: unknown;
+    title?: unknown;
+    item_id?: unknown;
+    catalog_items?: unknown;
+  };
+  const parent = Array.isArray(row.catalog_items) ? row.catalog_items[0] : row.catalog_items;
+  if (!parent || typeof parent !== "object") return null;
+  const item = parent as { name?: unknown; image?: unknown; kind?: unknown };
+  const kind = item.kind;
+  if (kind !== "warframe" && kind !== "primary" && kind !== "secondary" && kind !== "melee") return null;
+  if (typeof row.id !== "string" || typeof row.short !== "string" || typeof row.title !== "string") return null;
+  if (typeof row.item_id !== "string" || typeof item.name !== "string" || !item.name) return null;
+  return {
+    itemId: row.item_id,
+    itemName: item.name,
+    image: typeof item.image === "string" && item.image ? item.image : null,
+    kind,
+    partId: row.id,
+    short: row.short,
+    title: row.title,
+  };
+}
+
 export async function fetchItemDetail(id: string): Promise<CatalogItem | null> {
   if (!supabase) throw new Error("supabase");
   const { data, error } = await supabase.rpc("item_detail", { p_id: id });

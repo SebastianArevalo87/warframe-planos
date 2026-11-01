@@ -10,6 +10,7 @@ import { fetchPrices, type PriceQuote } from "./lib/market.ts";
 import { refreshCatalog } from "./lib/refreshCatalog.ts";
 import { Dashboard } from "./Dashboard.tsx";
 import { SellPage } from "./SellPage.tsx";
+import { LoadPage } from "./LoadPage.tsx";
 import { FilterBar } from "./FilterBar.tsx";
 import { ItemCard, ItemTile } from "./ItemCard.tsx";
 import { RelicModal } from "./RelicModal.tsx";
@@ -27,7 +28,7 @@ function profileForm(profile: Profile) {
   };
 }
 
-type AppPage = "home" | "search" | "sell";
+type AppPage = "home" | "search" | "sell" | "load";
 
 function readPage(): AppPage {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -35,6 +36,7 @@ function readPage(): AppPage {
   if (base && path.startsWith(base)) path = path.slice(base.length) || "/";
   if (path === "/vender" || path.startsWith("/vender/")) return "sell";
   if (path === "/buscar" || path.startsWith("/buscar/")) return "search";
+  if (path === "/cargar" || path.startsWith("/cargar/")) return "load";
   return "home";
 }
 
@@ -42,6 +44,7 @@ function pagePath(page: AppPage) {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   if (page === "search") return `${base}/buscar`;
   if (page === "sell") return `${base}/vender`;
+  if (page === "load") return `${base}/cargar`;
   return `${base}/` || "/";
 }
 
@@ -396,10 +399,10 @@ export function App() {
   }
 
   function setPartQty(id: string, next: number) {
-    if (!openItem) return;
     const updated = withAmount(collectionRef.current, id, "parts", next);
     collectionRef.current = updated;
     writeAccount(updated);
+    if (!openItem?.parts.some((part) => part.id === id)) return;
     patchOpenRow({ ownedCount: openItem.parts.filter((part) => (updated.qty[part.id] ?? 0) > 0).length });
   }
 
@@ -610,6 +613,7 @@ export function App() {
         <nav className="mt-4 flex flex-wrap gap-2" aria-label="Secciones">
           <PageTab active={page === "home"} label="Tablero" onClick={() => openPage("home")} />
           <PageTab active={page === "search"} label="Buscar" onClick={() => openPage("search")} />
+          <PageTab active={page === "load"} label="Cargar" onClick={() => openPage("load")} />
           <PageTab active={page === "sell"} label="Vender" onClick={() => openPage("sell")} />
         </nav>
         {notice && <p className="mt-3 text-sm text-mute">{notice}</p>}
@@ -638,6 +642,8 @@ export function App() {
             <p className="-mt-3 text-xs text-mute/80">Catálogo {stats.sourceVersion}</p>
           )}
         </div>
+      ) : page === "load" ? (
+        <LoadPage qty={collection.qty} onToggle={setPartQty} onOpen={showItem} />
       ) : page === "sell" ? (
         <SellPage
           rows={sellRows}
@@ -711,6 +717,7 @@ export function App() {
           label={openItem?.name ?? "Detalle del plano"}
           onClose={hideItem}
           onBack={canGoBack ? () => window.history.back() : undefined}
+          wide
         >
           {detailLoading && <p className="px-2 pb-4 text-mute">Abriendo el plano…</p>}
           {!detailLoading && !openItem && <p className="px-2 pb-4 text-mute">Ese plano no está en la base.</p>}

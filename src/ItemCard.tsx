@@ -84,7 +84,7 @@ export function ItemCard({
   }, [missingKey]);
 
   return (
-    <article className="min-w-0 max-w-full rounded-2xl border border-line bg-panel/90 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.22)]">
+    <article className="min-w-0 max-w-full">
       <header className="flex flex-wrap items-start gap-3">
         {item.image && <ItemImage src={item.image} large />}
         <div className="min-w-0 flex-1 basis-48">
@@ -140,7 +140,7 @@ export function ItemCard({
       </header>
 
       {item.parts.length === 0 && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line/80 bg-ink/40 px-3 py-2">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line/50 pt-3">
           <div>
             <p className="text-bone">Cantidad</p>
             {item.slug ? (
@@ -157,16 +157,19 @@ export function ItemCard({
       )}
 
       {parts.length > 0 && (
-        <div className="mt-3 flex flex-col gap-3">
+        <div className="mt-4">
           {!built && (
             <MaterialTotals
               title="Materiales para construir"
               note="Costo de las piezas que todavía no marcaste como construidas."
               materials={remainingMaterials}
               onOpenItem={onOpenItem}
+              spread
             />
           )}
-          <ul className="flex flex-col gap-2">
+          <div className="mt-6 min-w-0 lg:mt-0">
+          <p className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">Piezas</p>
+          <ul className="mt-2">
             {parts.map((part) => (
               <PartRow
                 key={part.id}
@@ -182,10 +185,11 @@ export function ItemCard({
               />
             ))}
           </ul>
+          </div>
         </div>
       )}
       {!built && item.setSlug && missingSlugs.length > 0 && (
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/30 bg-ink/40 px-3 py-2">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gold/30 pt-3">
           <p className="text-bone">Set completo</p>
           <BuyLink
             label="el set completo"
@@ -391,7 +395,7 @@ function PartRow({
   const forSale = vendible && built && amount > 0;
   const needsBuy = !built && amount === 0 && part.slug !== null;
   return (
-    <li className="min-w-0 rounded-xl border border-line/80 bg-ink/40 px-3 py-2">
+    <li className="min-w-0 border-t border-line/40 py-3 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto sm:flex-1">
           {part.image && <ItemImage src={part.image} compact />}

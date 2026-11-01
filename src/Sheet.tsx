@@ -6,12 +6,14 @@ export function Sheet({
   onBack,
   children,
   stacked = false,
+  wide = false,
 }: {
   label: string;
   onClose: () => void;
   onBack?: () => void;
   children: ReactNode;
   stacked?: boolean;
+  wide?: boolean;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -30,7 +32,7 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="flex max-h-[min(92dvh,44rem)] min-h-0 w-full min-w-0 max-w-xl flex-col overflow-hidden rounded-2xl border border-line bg-ink shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+        className={`flex max-h-[min(92dvh,44rem)] min-h-0 w-full min-w-0 max-w-xl flex-col overflow-hidden rounded-2xl border border-line bg-ink shadow-[0_24px_80px_rgba(0,0,0,0.45)] lg:max-h-[min(90dvh,56rem)] ${wide ? "lg:max-w-5xl" : "lg:max-w-3xl"}`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className={onBack ? "flex shrink-0 items-center justify-between px-3 pt-3" : "flex shrink-0 justify-end px-3 pt-3"}>

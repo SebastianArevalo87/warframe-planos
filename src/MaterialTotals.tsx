@@ -7,19 +7,21 @@ export function MaterialTotals({
   note,
   materials,
   onOpenItem,
+  spread = false,
 }: {
   title: string;
   note?: string;
   materials: CraftMaterial[];
   onOpenItem?: (id: string) => void;
+  spread?: boolean;
 }) {
   if (materials.length === 0) return null;
   return (
-    <section className="rounded-2xl border border-line bg-panel/80 px-4 py-3">
+    <section className="min-w-0">
       <p className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">{title}</p>
       {note && <p className="mt-1 text-xs text-mute">{note}</p>}
-      <div className="mt-2 max-h-72 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-y-contain">
-        <MaterialList materials={materials} columns onOpenItem={onOpenItem} />
+      <div className="mt-2">
+        <MaterialList materials={materials} onOpenItem={onOpenItem} spread={spread} />
       </div>
     </section>
   );
@@ -28,16 +30,16 @@ export function MaterialTotals({
 export function MaterialList({
   materials,
   muted = false,
-  columns = false,
   onOpenItem,
+  spread = false,
 }: {
   materials: CraftMaterial[];
   muted?: boolean;
-  columns?: boolean;
   onOpenItem?: (id: string) => void;
+  spread?: boolean;
 }) {
   return (
-    <ul className={columns ? "grid gap-1 sm:grid-cols-2" : "grid gap-1"}>
+    <ul className={spread ? "grid gap-0.5 lg:grid-cols-2 lg:gap-x-10" : "grid gap-0.5"}>
       {materials.map((material) => {
         const openable = Boolean(onOpenItem) && isBuiltItem(material.id);
         const nameClass = muted
@@ -59,12 +61,12 @@ export function MaterialList({
                 type="button"
                 onClick={() => onOpenItem(material.id)}
                 aria-label={`Ver requisitos de ${material.name}`}
-                className="flex w-full min-w-0 items-center gap-2 rounded-lg bg-ink/60 px-2 py-1.5 text-left hover:bg-gold/10"
+                className="flex w-full min-w-0 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-gold/10"
               >
                 {body}
               </button>
             ) : (
-              <div className="flex min-w-0 items-center gap-2 rounded-lg bg-ink/60 px-2 py-1.5">{body}</div>
+              <div className="flex min-w-0 items-center gap-2 px-1 py-1">{body}</div>
             )}
           </li>
         );

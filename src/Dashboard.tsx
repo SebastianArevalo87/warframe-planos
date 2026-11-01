@@ -14,12 +14,14 @@ export function Dashboard({
   mastery,
   onOpen,
   onSearch,
+  onSell,
 }: {
   stats: DashboardStats | null;
   accountName: string;
   mastery: string;
   onOpen: (id: string) => void;
   onSearch: (kind: KindFilter, status: StatusFilter) => void;
+  onSell: () => void;
 }) {
   if (!stats) return <p className="text-mute">Abriendo el tablero…</p>;
 
@@ -69,14 +71,8 @@ export function Dashboard({
         <CountCard label="Casi" value={stats.almost} hint="faltan 1 o 2" onClick={() => onSearch("all", "almost")} />
       </section>
 
-      <HighlightList
-        title="Para vender"
-        empty="Aquí salen los planos vendibles de ítems que ya construiste, y los ítems sin planos que sí tienes."
-        items={stats.sellItems}
-        total={stats.sellCopies}
-        stock
-        onOpen={onOpen}
-      />
+      <SellCard copies={stats.sellCopies} items={stats.sellItemCount} onClick={onSell} />
+
       <HighlightList
         title="Listos para fundir"
         empty="Cuando tengas todos los planos de un ítem, aparece aquí."
@@ -171,6 +167,23 @@ function CountCard({ label, value, hint, onClick }: { label: string; value: numb
   );
 }
 
+function SellCard({ copies, items, onClick }: { copies: number; items: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Para vender: ${items} ítems, ${copies} copias. Abrir la página.`}
+      className="rounded-2xl border border-line bg-panel px-4 py-4 text-left hover:border-gold"
+    >
+      <p className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">Para vender</p>
+      <p className="mt-2 text-4xl font-medium text-bone">{copies}</p>
+      <p className="mt-1 text-sm text-mute">
+        {items === 1 ? "1 ítem" : `${items} ítems`} · {copies === 1 ? "1 copia" : `${copies} copias`}
+      </p>
+    </button>
+  );
+}
+
 function HighlightList({
   title,
   empty,
@@ -178,7 +191,6 @@ function HighlightList({
   total,
   onOpen,
   onSeeAll,
-  stock = false,
 }: {
   title: string;
   empty: string;
@@ -186,13 +198,11 @@ function HighlightList({
   total: number;
   onOpen: (id: string) => void;
   onSeeAll?: () => void;
-  stock?: boolean;
 }) {
   return (
     <section>
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <h2 className="text-lg font-medium text-bone">{title}</h2>
-        {stock && total > 0 && <span className="text-sm text-mute">{total} {total === 1 ? "copia" : "copias"}</span>}
         {onSeeAll && (
           <button type="button" onClick={onSeeAll} className="text-sm text-gold">
             Ver los {total}

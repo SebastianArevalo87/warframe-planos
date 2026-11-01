@@ -18,6 +18,7 @@ export type CatalogItem = {
   image: string | null;
   tradable: boolean;
   slug: string | null;
+  setSlug: string | null;
   parts: CatalogPart[];
 };
 

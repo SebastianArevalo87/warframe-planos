@@ -28,6 +28,7 @@ export type DashboardStats = {
   readyItems: DashboardHighlight[];
   almostItems: DashboardHighlight[];
   sellCopies: number;
+  sellItemCount: number;
   sellItems: DashboardHighlight[];
   sourceVersion: string | null;
   generatedAt: string | null;
@@ -63,6 +64,7 @@ const emptyStats = (): DashboardStats => ({
   readyItems: [],
   almostItems: [],
   sellCopies: 0,
+  sellItemCount: 0,
   sellItems: [],
   sourceVersion: null,
   generatedAt: null,
@@ -110,6 +112,7 @@ function asStats(value: unknown): DashboardStats {
     readyItems: asHighlights(stats.readyItems),
     almostItems: asHighlights(stats.almostItems),
     sellCopies: Number(stats.sellCopies) || 0,
+    sellItemCount: Number(stats.sellItemCount) || 0,
     sellItems: asHighlights(stats.sellItems),
     sourceVersion: typeof stats.sourceVersion === "string" ? stats.sourceVersion : null,
     generatedAt: typeof stats.generatedAt === "string" ? stats.generatedAt : null,
@@ -176,11 +179,74 @@ export async function fetchItemDetail(id: string): Promise<CatalogItem | null> {
     ...item,
     tradable: item.tradable === true || slug !== null,
     slug,
+    setSlug: typeof item.setSlug === "string" && item.setSlug.endsWith("_set") ? item.setSlug : null,
     parts: item.parts.flatMap((part) => {
       const next = asPart(part);
       return next ? [next] : [];
     }),
   };
+}
+
+export type SellPart = {
+  id: string;
+  title: string;
+  slug: string | null;
+  qty: number;
+};
+
+export type SellRow = {
+  id: string;
+  name: string;
+  kind: ItemKind;
+  image: string | null;
+  setSlug: string | null;
+  parts: SellPart[];
+};
+
+function asSellRows(value: unknown): SellRow[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const row = entry as Partial<SellRow>;
+    if (typeof row.id !== "string" || typeof row.name !== "string") return [];
+    const kind = row.kind;
+    if (kind !== "warframe" && kind !== "primary" && kind !== "secondary" && kind !== "melee") return [];
+    const parts = Array.isArray(row.parts)
+      ? row.parts.flatMap((part) => {
+          if (!part || typeof part !== "object") return [];
+          const piece = part as Partial<SellPart>;
+          if (typeof piece.id !== "string" || typeof piece.title !== "string") return [];
+          const qty = Number(piece.qty);
+          if (!Number.isInteger(qty) || qty <= 0) return [];
+          return [
+            {
+              id: piece.id,
+              title: piece.title,
+              slug: typeof piece.slug === "string" ? piece.slug : null,
+              qty,
+            },
+          ];
+        })
+      : [];
+    if (parts.length === 0) return [];
+    return [
+      {
+        id: row.id,
+        name: row.name,
+        kind,
+        image: typeof row.image === "string" ? row.image : null,
+        setSlug: typeof row.setSlug === "string" ? row.setSlug : null,
+        parts,
+      },
+    ];
+  });
+}
+
+export async function fetchSellStock(): Promise<SellRow[]> {
+  if (!supabase) throw new Error("supabase");
+  const { data, error } = await supabase.rpc("sell_stock");
+  if (error) throw error;
+  return asSellRows(data);
 }
 
 export async function storeCatalog(catalog: Catalog): Promise<number> {

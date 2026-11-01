@@ -5,9 +5,11 @@ import { emptyCollection, withAmount } from "./lib/collection.ts";
 import { loadProfile, masteryValue, saveProfile, type Profile, type Session } from "./lib/account.ts";
 import { loadOrCreateRemote, saveRemoteAccount } from "./lib/remote.ts";
 import { sessionFromUser, supabase, supabaseEnabled } from "./lib/supabase.ts";
-import { fetchDashboard, fetchItemDetail, fetchItemList, storeCatalog, type DashboardStats, type ItemSummary } from "./lib/catalogRemote.ts";
+import { fetchDashboard, fetchItemDetail, fetchItemList, fetchSellStock, storeCatalog, type DashboardStats, type ItemSummary, type SellRow } from "./lib/catalogRemote.ts";
+import { fetchPrices, type PriceQuote } from "./lib/market.ts";
 import { refreshCatalog } from "./lib/refreshCatalog.ts";
 import { Dashboard } from "./Dashboard.tsx";
+import { SellPage } from "./SellPage.tsx";
 import { ItemCard, ItemTile } from "./ItemCard.tsx";
 import { Gate, LoginScreen } from "./Login.tsx";
 
@@ -40,18 +42,22 @@ function profileForm(profile: Profile) {
   };
 }
 
-type AppPage = "home" | "search";
+type AppPage = "home" | "search" | "sell";
 
 function readPage(): AppPage {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   let path = window.location.pathname;
   if (base && path.startsWith(base)) path = path.slice(base.length) || "/";
-  return path === "/buscar" || path.startsWith("/buscar/") ? "search" : "home";
+  if (path === "/vender" || path.startsWith("/vender/")) return "sell";
+  if (path === "/buscar" || path.startsWith("/buscar/")) return "search";
+  return "home";
 }
 
 function pagePath(page: AppPage) {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  return page === "search" ? `${base}/buscar` : `${base}/` || "/";
+  if (page === "search") return `${base}/buscar`;
+  if (page === "sell") return `${base}/vender`;
+  return `${base}/` || "/";
 }
 
 function readFilters(): { kind: KindFilter; status: StatusFilter } {
@@ -104,6 +110,11 @@ export function App() {
   const [savedTick, setSavedTick] = useState(0);
   const [listReload, setListReload] = useState(0);
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [sellRows, setSellRows] = useState<SellRow[]>([]);
+  const [sellLoading, setSellLoading] = useState(false);
+  const [sellError, setSellError] = useState("");
+  const [prices, setPrices] = useState<Record<string, PriceQuote | null>>({});
+  const [pricesLoading, setPricesLoading] = useState(false);
   const [openId, setOpenId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("item"));
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(() => Boolean(new URLSearchParams(window.location.search).get("item")));
@@ -194,6 +205,37 @@ export function App() {
       cancelled = true;
     };
   }, [accountReady, savedTick]);
+
+  useEffect(() => {
+    if (!accountReady || !supabaseEnabled || page !== "sell") return;
+    let cancelled = false;
+    setSellLoading(true);
+    setSellError("");
+    setPricesLoading(false);
+    void fetchSellStock()
+      .then(async (rows) => {
+        if (cancelled) return;
+        setSellRows(rows);
+        setSellLoading(false);
+        const slugs = rows.flatMap((row) => [...row.parts.map((part) => part.slug ?? ""), row.setSlug ?? ""]);
+        if (slugs.every((slug) => slug === "")) return;
+        setPricesLoading(true);
+        const next = await fetchPrices(slugs);
+        if (!cancelled) setPrices(next);
+      })
+      .catch(() => {
+        if (!cancelled) setSellError("No pude abrir lo que puedes vender.");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSellLoading(false);
+          setPricesLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountReady, page, savedTick]);
 
   useEffect(() => {
     if (!accountReady || !supabaseEnabled || page !== "search") return;
@@ -548,9 +590,10 @@ export function App() {
             </div>
           )}
         </div>
-        <nav className="mt-4 flex gap-2" aria-label="Secciones">
+        <nav className="mt-4 flex flex-wrap gap-2" aria-label="Secciones">
           <PageTab active={page === "home"} label="Tablero" onClick={() => openPage("home")} />
           <PageTab active={page === "search"} label="Buscar" onClick={() => openPage("search")} />
+          <PageTab active={page === "sell"} label="Vender" onClick={() => openPage("sell")} />
         </nav>
         {notice && <p className="mt-3 text-sm text-mute">{notice}</p>}
       </header>
@@ -564,6 +607,7 @@ export function App() {
             mastery={profile.mastery.trim()}
             onOpen={showItem}
             onSearch={openSearch}
+            onSell={() => openPage("sell")}
           />
           <button
             type="button"
@@ -577,6 +621,15 @@ export function App() {
             <p className="-mt-3 text-xs text-mute/80">Catálogo {stats.sourceVersion}</p>
           )}
         </div>
+      ) : page === "sell" ? (
+        <SellPage
+          rows={sellRows}
+          prices={prices}
+          loading={sellLoading}
+          pricesLoading={pricesLoading}
+          error={sellError}
+          onOpen={showItem}
+        />
       ) : (
         <div>
         <label className="block">

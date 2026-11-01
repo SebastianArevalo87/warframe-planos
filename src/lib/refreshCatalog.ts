@@ -23,8 +23,10 @@ export async function refreshCatalog(previous?: Catalog): Promise<Catalog> {
   if (entries.length === 0 && previous) {
     const slugs = new Map<string, string>();
     const itemSlugs = new Map<string, string>();
+    const setSlugs = new Map<string, string>();
     for (const item of previous.items) {
       if (item.slug) itemSlugs.set(item.id, item.slug);
+      if (item.setSlug) setSlugs.set(item.id, item.setSlug);
       for (const part of item.parts) {
         if (part.slug) slugs.set(part.id, part.slug);
       }
@@ -34,6 +36,10 @@ export async function refreshCatalog(previous?: Catalog): Promise<Catalog> {
       if (!item.slug && item.parts.length === 0 && itemSlug) {
         item.slug = itemSlug;
         item.tradable = true;
+      }
+      if (!item.setSlug && item.parts.length > 0) {
+        const setSlug = setSlugs.get(item.id);
+        if (setSlug) item.setSlug = setSlug;
       }
       for (const part of item.parts) {
         const slug = slugs.get(part.id);

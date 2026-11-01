@@ -6,11 +6,13 @@ create table if not exists public.catalog_items (
   image text,
   tradable boolean not null default false,
   slug text,
+  set_slug text,
   updated_at timestamptz not null default now()
 );
 
 alter table public.catalog_items add column if not exists tradable boolean not null default false;
 alter table public.catalog_items add column if not exists slug text;
+alter table public.catalog_items add column if not exists set_slug text;
 
 create table if not exists public.catalog_parts (
   id text not null,
@@ -156,6 +158,7 @@ begin
     'ownedParts', (select count(*) from public.catalog_parts cp where cp.id = any(owned_parts)),
     'partTotal', (select count(*) from public.catalog_parts),
     'sellCopies', coalesce((select sum(qty) from sellable), 0),
+    'sellItemCount', (select count(distinct item_id) from sellable),
     'sellItems', coalesce((
       select jsonb_agg(jsonb_build_object(
         'id', id, 'name', name, 'kind', kind, 'image', image, 'missing', 0, 'caption', caption
@@ -198,6 +201,93 @@ begin
   )
   into result
   from marked;
+
+  return result;
+end;
+$$;
+
+create or replace function public.sell_stock()
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = public
+as $$
+declare
+  col jsonb := '{"parts":[],"built":[],"items":[]}'::jsonb;
+  owned_parts text[];
+  built_ids text[];
+  owned_items text[];
+  result jsonb;
+begin
+  select collection into col from public.profiles where user_id = auth.uid();
+  if col is null then
+    col := '{"parts":[],"built":[],"items":[]}'::jsonb;
+  end if;
+  owned_parts := array(select jsonb_array_elements_text(col->'parts'));
+  built_ids := array(select jsonb_array_elements_text(col->'built'));
+  owned_items := array(select jsonb_array_elements_text(col->'items'));
+
+  with parts as (
+    select distinct on (cp.id)
+      cp.item_id,
+      cp.id,
+      cp.title,
+      cp.slug,
+      cp.sort_order,
+      public.stock_qty(col, cp.id, cp.id = any(owned_parts)) as qty
+    from public.catalog_parts cp
+    where (cp.tradable or cp.slug is not null)
+      and cp.item_id = any(built_ids)
+    order by cp.id, cp.sort_order
+  ),
+  grouped as (
+    select
+      i.id,
+      i.name,
+      i.kind,
+      i.image,
+      i.set_slug,
+      coalesce((
+        select jsonb_agg(jsonb_build_object(
+          'id', p.id,
+          'title', p.title,
+          'slug', p.slug,
+          'qty', p.qty
+        ) order by p.sort_order, p.title)
+        from parts p
+        where p.item_id = i.id and p.qty > 0
+      ), '[]'::jsonb) as parts
+    from public.catalog_items i
+    where exists (select 1 from parts p where p.item_id = i.id and p.qty > 0)
+    union all
+    select
+      i.id,
+      i.name,
+      i.kind,
+      i.image,
+      null::text,
+      jsonb_build_array(jsonb_build_object(
+        'id', i.id,
+        'title', 'Ítem',
+        'slug', i.slug,
+        'qty', public.stock_qty(col, i.id, i.id = any(owned_items))
+      ))
+    from public.catalog_items i
+    where i.slug is not null
+      and not exists (select 1 from public.catalog_parts p where p.item_id = i.id)
+      and public.stock_qty(col, i.id, i.id = any(owned_items)) > 0
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', id,
+    'name', name,
+    'kind', kind,
+    'image', image,
+    'setSlug', set_slug,
+    'parts', parts
+  ) order by name), '[]'::jsonb)
+  into result
+  from grouped;
 
   return result;
 end;
@@ -389,7 +479,7 @@ begin
     select 1 from public.catalog_items where id = element->>'id'
   );
 
-  insert into public.catalog_items (id, name, kind, vaulted, image, tradable, slug, updated_at)
+  insert into public.catalog_items (id, name, kind, vaulted, image, tradable, slug, set_slug, updated_at)
   select
     element->>'id',
     element->>'name',
@@ -401,6 +491,7 @@ begin
       when right(coalesce(element->>'slug', ''), 4) = '_set' then null
       else nullif(element->>'slug', '')
     end,
+    nullif(element->>'setSlug', ''),
     now()
   from jsonb_array_elements(coalesce(payload->'items', '[]'::jsonb)) as element
   where element->>'kind' in ('warframe', 'primary', 'secondary', 'melee')
@@ -413,6 +504,7 @@ begin
     image = excluded.image,
     tradable = excluded.tradable or public.catalog_items.tradable,
     slug = coalesce(excluded.slug, public.catalog_items.slug),
+    set_slug = coalesce(excluded.set_slug, public.catalog_items.set_slug),
     updated_at = now();
 
   insert into public.catalog_parts (id, item_id, short, title, english, tradable, slug, image, sort_order)
@@ -458,6 +550,7 @@ revoke all on function public.stock_qty(jsonb, text, boolean) from public;
 revoke all on function public.dashboard_stats() from public;
 revoke all on function public.list_items(text, text, text, integer, integer) from public;
 revoke all on function public.item_detail(text) from public;
+revoke all on function public.sell_stock() from public;
 revoke all on function public.upsert_catalog(jsonb) from public;
 
 grant execute on function public.fold(text) to authenticated;
@@ -465,6 +558,7 @@ grant execute on function public.stock_qty(jsonb, text, boolean) to authenticate
 grant execute on function public.dashboard_stats() to authenticated;
 grant execute on function public.list_items(text, text, text, integer, integer) to authenticated;
 grant execute on function public.item_detail(text) to authenticated;
+grant execute on function public.sell_stock() to authenticated;
 grant execute on function public.upsert_catalog(jsonb) to authenticated;
 
 notify pgrst, 'reload schema';

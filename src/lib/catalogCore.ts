@@ -234,6 +234,17 @@ export function marketEntries(
   return entries;
 }
 
+function matchSetSlug(name: string, uniqueName: string, market: MarketIndex): string | null {
+  const guess = `${slugify(name)}_set`;
+  const found = [
+    market.byRef.get(uniqueName),
+    market.byName.get(name.toLowerCase()),
+    market.byName.get(`${name.toLowerCase()} set`),
+    market.slugs.has(guess) ? guess : null,
+  ];
+  return found.find((slug) => slug?.endsWith("_set")) ?? null;
+}
+
 function matchItemSlug(name: string, uniqueName: string, market: MarketIndex): string | null {
   const slug = market.byRef.get(uniqueName) ?? market.byName.get(name.toLowerCase()) ?? null;
   if (!slug || slug.endsWith("_set")) return null;
@@ -342,6 +353,7 @@ export function buildCatalog(
         image: itemImage(raw.imageName),
         tradable: itemSlug !== null,
         slug: itemSlug,
+        setSlug: parts.length > 0 ? matchSetSlug(name, id, market) : null,
         parts,
       });
     }

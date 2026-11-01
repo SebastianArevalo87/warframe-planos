@@ -4,14 +4,12 @@ import { KIND_LABEL, type KindFilter, type StatusFilter } from "./types.ts";
 export function Dashboard({
   stats,
   accountName,
-  mastery,
   onOpen,
   onSearch,
   onSell,
 }: {
   stats: DashboardStats | null;
   accountName: string;
-  mastery: string;
   onOpen: (id: string) => void;
   onSearch: (kind: KindFilter, status: StatusFilter) => void;
   onSell: () => void;
@@ -23,12 +21,7 @@ export function Dashboard({
 
   return (
     <div className="grid grid-cols-2 gap-x-3 gap-y-6 lg:grid-cols-6 lg:gap-4">
-      {(accountName || mastery) && (
-        <p className="order-1 col-span-2 text-sm text-mute lg:col-span-6">
-          {accountName || "Sin cuenta de Warframe"}
-          {mastery ? ` · maestría ${mastery}` : ""}
-        </p>
-      )}
+      {accountName && <p className="order-1 col-span-2 text-sm text-mute lg:col-span-6">{accountName}</p>}
 
       <div className="order-2 h-full lg:col-span-2">
         <BigNumber

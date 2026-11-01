@@ -11,6 +11,7 @@ import { refreshCatalog } from "./lib/refreshCatalog.ts";
 import { Dashboard } from "./Dashboard.tsx";
 import { SellPage } from "./SellPage.tsx";
 import { LoadPage } from "./LoadPage.tsx";
+import { MasteryBadge } from "./MasteryBadge.tsx";
 import { FilterBar } from "./FilterBar.tsx";
 import { ItemCard, ItemTile } from "./ItemCard.tsx";
 import { RelicModal } from "./RelicModal.tsx";
@@ -553,10 +554,13 @@ export function App() {
       <header className="pt-6 pb-4">
         <div ref={accountMenuRef} className="relative">
           <div className="flex items-start justify-between gap-3">
-            <button type="button" onClick={() => openPage("home")} className="text-left">
-              <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
-              <h1 className="text-3xl font-medium text-bone">Planos</h1>
-            </button>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+              <button type="button" onClick={() => openPage("home")} className="text-left">
+                <p className="text-[11px] font-medium tracking-[0.22em] text-gold uppercase">Warframe</p>
+                <h1 className="text-3xl font-medium text-bone">Planos</h1>
+              </button>
+              <MasteryBadge mastered={collection.mastered} />
+            </div>
             <div className="flex items-start gap-3">
               <button
                 type="button"
@@ -585,7 +589,7 @@ export function App() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-bone">{session ? session.name : "Tu cuenta"}</p>
                   <p className="truncate text-xs text-mute">
-                    {session ? session.email : "El nombre y la maestría los escribes tú."}
+                    {session ? session.email : "El nombre del juego lo escribes tú."}
                   </p>
                 </div>
                 {session && (
@@ -594,28 +598,16 @@ export function App() {
                   </button>
                 )}
               </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_7rem]">
-                <label className="block">
-                  <span className="text-xs text-mute">Cuenta de Warframe</span>
-                  <input
-                    value={profile.warframeAccount}
-                    onChange={(event) => changeProfile({ ...profile, warframeAccount: event.target.value })}
-                    placeholder="Nombre#1234"
-                    autoComplete="off"
-                    className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs text-mute">Maestría</span>
-                  <input
-                    value={profile.mastery}
-                    onChange={(event) => changeProfile({ ...profile, mastery: event.target.value })}
-                    inputMode="numeric"
-                    placeholder="0"
-                    className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
-                  />
-                </label>
-              </div>
+              <label className="mt-3 block">
+                <span className="text-xs text-mute">Cuenta de Warframe</span>
+                <input
+                  value={profile.warframeAccount}
+                  onChange={(event) => changeProfile({ ...profile, warframeAccount: event.target.value })}
+                  placeholder="Nombre#1234"
+                  autoComplete="off"
+                  className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold"
+                />
+              </label>
               {accountHint && <p className="mt-2 text-xs text-clay">{accountHint}</p>}
             </div>
           )}
@@ -635,7 +627,6 @@ export function App() {
           <Dashboard
             stats={stats}
             accountName={profile.warframeAccount.trim()}
-            mastery={profile.mastery.trim()}
             onOpen={showItem}
             onSearch={openSearch}
             onSell={() => openPage("sell")}

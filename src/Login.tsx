@@ -21,7 +21,7 @@ export function LoginScreen() {
 
   return (
     <Gate
-      title="Entra con Google para guardar tu lista. Cada cuenta ve solo lo suyo, en el celular y en la computadora. El nombre del juego y la maestría los escribes tú."
+      title="Entra con Google para guardar tu lista. Cada cuenta ve solo lo suyo, en el celular y en la computadora. El nombre del juego lo escribes tú. La maestría sale del equipo que marques como dominado."
       action={
         <button
           type="button"

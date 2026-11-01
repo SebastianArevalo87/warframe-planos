@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchItemIndex, type MasteryRow } from "./lib/catalogRemote.ts";
+import { masteryXp } from "./lib/mastery.ts";
+import { MasteryMark } from "./MasteryBadge.tsx";
 import type { ItemKind } from "./types.ts";
 
 type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "companion" | "robotic" | "archgun" | "archmelee" | "amp";
@@ -72,7 +74,10 @@ export function MasteryPage({
 
   return (
     <div>
-      <p className="text-sm text-mute">Rango 30. El orden es el del perfil, por nombre.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-mute">Rango 30. El orden es el del perfil, por nombre.</p>
+        <MasteryMark xp={masteryXp(rows, mastered)} ready={!loading} />
+      </div>
       {error && <p className="mt-3 text-clay">{error}</p>}
       {loading && <p className="mt-4 text-mute">Abriendo el equipo…</p>}
       {!loading && !error && (

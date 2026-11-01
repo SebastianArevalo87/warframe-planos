@@ -700,8 +700,8 @@ export function App() {
               <p className="text-sm text-mute">Sumando materiales…</p>
             ) : (
               <MaterialTotals
-                title="Materiales que faltan"
-                note="De los ítems de esta búsqueda que todavía no construiste, sin las piezas que marcaste como construidas."
+                title="Materiales para construir"
+                note="Costo de los ítems de esta búsqueda que todavía no construiste, sin las piezas ya construidas."
                 materials={materialTotals}
               />
             )}

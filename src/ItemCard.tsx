@@ -145,8 +145,8 @@ export function ItemCard({
         <div className="mt-3 flex flex-col gap-3">
           {!built && (
             <MaterialTotals
-              title="Materiales que faltan"
-              note="Sin las piezas que marcaste como construidas."
+              title="Materiales para construir"
+              note="Costo de las piezas que todavía no marcaste como construidas."
               materials={remainingMaterials}
             />
           )}

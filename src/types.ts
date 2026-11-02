@@ -129,6 +129,7 @@ export type Collection = {
   crafted: string[];
   mastered: string[];
   leveled: string[];
+  goals: string[];
   dossier?: ProfileDossier;
 };
 

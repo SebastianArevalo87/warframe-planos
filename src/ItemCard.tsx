@@ -19,6 +19,8 @@ type ItemCardProps = {
   onToggleBuilt: () => void;
   onShowRelics?: () => void;
   onOpenItem?: (id: string) => void;
+  farming?: boolean;
+  mastered?: boolean;
 };
 
 function sellable(part: { tradable: boolean; slug: string | null }) {
@@ -41,6 +43,8 @@ export function ItemCard({
   onToggleBuilt,
   onShowRelics,
   onOpenItem,
+  farming = false,
+  mastered = false,
 }: ItemCardProps) {
   const names = useNames();
   const itemLabel = names.item(item.id, item.name);
@@ -49,7 +53,7 @@ export function ItemCard({
     : item.parts;
   const ownedCount = item.parts.filter((part) => (qty[part.id] ?? 0) > 0).length;
   const ready = item.parts.length > 0 && ownedCount === item.parts.length && !built;
-  const sellCopies = built
+  const sellCopies = mastered
     ? item.parts.reduce((sum, part) => (sellable(part) ? sum + (qty[part.id] ?? 0) : sum), 0)
     : 0;
   const itemCopies = qty[item.id] ?? 0;
@@ -128,17 +132,19 @@ export function ItemCard({
                   Reliquias
                 </button>
               )}
-              <button
-                type="button"
-                onClick={onToggleBuilt}
-                className={
-                  built
-                    ? "rounded-full border border-moss/40 px-3 py-1.5 text-sm text-moss"
-                    : "rounded-full border border-line px-3 py-1.5 text-sm text-bone hover:border-gold"
-                }
-              >
-                {built ? "Quitar construido" : "Ya lo construí"}
-              </button>
+              {farming && (
+                <button
+                  type="button"
+                  onClick={onToggleBuilt}
+                  className={
+                    built
+                      ? "rounded-full border border-moss/40 px-3 py-1.5 text-sm text-moss"
+                      : "rounded-full border border-line px-3 py-1.5 text-sm text-bone hover:border-gold"
+                  }
+                >
+                  {built ? "Quitar construido" : "Ya lo construí"}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -187,6 +193,8 @@ export function ItemCard({
                 onQty={(next) => onPartQty(part.id, next)}
                 onToggleCrafted={() => onToggleCrafted(part.id)}
                 onOpenItem={onOpenItem}
+                farming={farming}
+                mastered={mastered}
               />
             ))}
           </ul>
@@ -255,7 +263,7 @@ export function GearCard({
   dimmed?: boolean;
   vaulted?: boolean;
   pressed?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
   leveled?: boolean;
   mastered?: boolean;
   onToggleLeveled?: () => void;
@@ -289,6 +297,13 @@ export function GearCard({
     </>
   );
   const frame = `relative aspect-square w-full overflow-hidden rounded-xl border bg-ink text-left ${TILE_FRAME[tone]}`;
+  if (!onClick) {
+    return (
+      <div className={frame} aria-label={status ? `${name}. ${status}` : name}>
+        {body}
+      </div>
+    );
+  }
   if (!onToggleLeveled) {
     return (
       <button
@@ -476,6 +491,8 @@ function PartRow({
   onQty,
   onToggleCrafted,
   onOpenItem,
+  farming,
+  mastered,
 }: {
   part: CatalogPart;
   title: string;
@@ -487,9 +504,11 @@ function PartRow({
   onQty: (next: number) => void;
   onToggleCrafted: () => void;
   onOpenItem?: (id: string) => void;
+  farming: boolean;
+  mastered: boolean;
 }) {
   const vendible = sellable(part);
-  const forSale = vendible && built && amount > 0;
+  const forSale = vendible && mastered && amount > 0;
   const needsBuy = !built && amount === 0 && part.slug !== null;
   return (
     <li className="min-w-0 border-t border-line/40 py-2.5 first:border-t-0 first:pt-0">
@@ -508,7 +527,7 @@ function PartRow({
             <BuyLink label={title} slug={part.slug} quote={quote} pending={pricePending} />
           )}
           {!needsBuy && part.slug && <PriceButton slug={part.slug} />}
-          {!built && !isFinalBlueprint(part) && part.materials.length > 0 && (
+          {farming && !built && !isFinalBlueprint(part) && part.materials.length > 0 && (
             <button
               type="button"
               onClick={onToggleCrafted}

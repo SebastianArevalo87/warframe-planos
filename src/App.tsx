@@ -5,7 +5,8 @@ import { craftKey, emptyCollection, withAmount } from "./lib/collection.ts";
 import { loadProfile, masteryValue, saveProfile, type Profile, type Session } from "./lib/account.ts";
 import { loadOrCreateRemote, saveRemoteAccount } from "./lib/remote.ts";
 import { sessionFromUser, supabase, supabaseEnabled } from "./lib/supabase.ts";
-import { fetchDashboard, fetchItemDetail, fetchItemIndex, fetchItemList, fetchSellStock, type DashboardStats, type ItemSummary, type SellRow } from "./lib/catalogRemote.ts";
+import { fetchDashboard, fetchItemDetail, fetchItemIndex, fetchItemList, type DashboardStats, type ItemSummary, type SellRow } from "./lib/catalogRemote.ts";
+import { buildSellBoard } from "./lib/sellBoard.ts";
 import { applyOfficialProfile, fetchOfficialProfile } from "./lib/officialProfile.ts";
 import { fetchPrices, type PriceQuote } from "./lib/market.ts";
 import { Dashboard } from "./Dashboard.tsx";
@@ -189,6 +190,26 @@ export function App() {
   }, [collection.dossier?.accountId]);
 
   useEffect(() => {
+    if (!accountReady) return;
+    const accountId = collectionRef.current.dossier?.accountId;
+    if (!accountId) return;
+    let cancelled = false;
+    void Promise.all([fetchOfficialProfile(accountId), fetchItemIndex()])
+      .then(([official, index]) => {
+        if (cancelled) return;
+        const applied = applyOfficialProfile(collectionRef.current, new Set(index.map((item) => item.id)), official);
+        collectionRef.current = applied.collection;
+        const nextProfile = { ...profile, mastery: String(official.rank) };
+        setProfile(nextProfile);
+        writeAccount(applied.collection, nextProfile);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [accountReady]);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
     return () => window.clearTimeout(timer);
   }, [query]);
@@ -214,12 +235,16 @@ export function App() {
     setSellLoading(true);
     setSellError("");
     setPricesLoading(false);
-    void fetchSellStock()
+    void buildSellBoard(collection.mastered, collection.qty)
       .then(async (rows) => {
         if (cancelled) return;
         setSellRows(rows);
         setSellLoading(false);
-        const slugs = rows.flatMap((row) => [...row.parts.map((part) => part.slug ?? ""), row.setSlug ?? ""]);
+        const slugs = rows.flatMap((row) => [
+          ...row.parts.map((part) => part.slug ?? ""),
+          ...row.gaps.map((gap) => gap.slug ?? ""),
+          row.setSlug ?? "",
+        ]);
         if (slugs.every((slug) => slug === "")) return;
         setPricesLoading(true);
         const next = await fetchPrices(slugs);
@@ -237,7 +262,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [accountReady, page, savedTick]);
+  }, [accountReady, page, collection.mastered, collection.qty]);
 
   useEffect(() => {
     if (!accountReady || !supabaseEnabled || page !== "search") return;
@@ -447,24 +472,12 @@ export function App() {
     patchOpenRow({ ownedItem: (updated.qty[id] ?? 0) > 0 });
   }
 
-  function toggleMastered(id: string) {
+  function toggleGoal(id: string) {
     const current = collectionRef.current;
-    const marking = !current.mastered.includes(id);
-    const mastered = marking ? [...current.mastered, id] : current.mastered.filter((itemId) => itemId !== id);
-    const leveled = marking ? current.leveled.filter((itemId) => itemId !== id) : current.leveled;
-    const built = marking && !current.built.includes(id) ? [...current.built, id] : current.built;
-    const updated = { ...current, mastered, leveled, built };
-    collectionRef.current = updated;
-    writeAccount(updated);
-    if (marking && openItem?.id === id) patchOpenRow({ built: true });
-  }
-
-  function toggleLeveled(id: string) {
-    const current = collectionRef.current;
-    const marking = !current.leveled.includes(id);
-    const leveled = marking ? [...current.leveled, id] : current.leveled.filter((itemId) => itemId !== id);
-    const mastered = marking ? current.mastered.filter((itemId) => itemId !== id) : current.mastered;
-    const updated = { ...current, mastered, leveled };
+    const goals = current.goals.includes(id)
+      ? current.goals.filter((itemId) => itemId !== id)
+      : [...current.goals, id].slice(0, 8);
+    const updated = { ...current, goals };
     collectionRef.current = updated;
     writeAccount(updated);
   }
@@ -706,6 +719,9 @@ export function App() {
             onOpen={showItem}
             onSearch={openSearch}
             onSell={() => openPage("sell")}
+            onToggleBuilt={toggleBuilt}
+            onToggleCrafted={toggleCrafted}
+            onToggleGoal={toggleGoal}
             onMastered={(group) => {
               window.location.hash = group ? `dominados-${group}` : "dominados";
               openPage("load");
@@ -718,16 +734,12 @@ export function App() {
       ) : page === "load" ? (
         <LoadPage
           qty={collection.qty}
-          crafted={collection.crafted}
           onToggle={setPartQty}
-          onToggleCrafted={toggleCrafted}
           onOpen={showItem}
           mastered={collection.mastered}
           leveled={collection.leveled}
-          built={collection.built}
-          onToggleMastered={toggleMastered}
-          onToggleBuilt={toggleBuilt}
-          onToggleLeveled={toggleLeveled}
+          goals={collection.goals}
+          onToggleGoal={toggleGoal}
         />
       ) : page === "sell" ? (
         <SellPage
@@ -818,6 +830,8 @@ export function App() {
               onPartQty={setPartQty}
               onItemQty={(next) => setItemQty(openItem.id, next)}
               onToggleBuilt={() => toggleBuilt(openItem.id)}
+              farming={collection.goals.includes(openItem.id)}
+              mastered={collection.mastered.includes(openItem.id)}
               onShowRelics={() => setRelicsOpen(true)}
               onOpenItem={(id) => showItem(id, true)}
             />

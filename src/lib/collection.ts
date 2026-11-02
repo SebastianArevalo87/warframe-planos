@@ -3,7 +3,7 @@ import type { Collection, ProfileDossier, ProfileIntrinsic, ProfileSyndicate } f
 export const MAX_QTY = 99;
 
 export function emptyCollection(): Collection {
-  return { parts: [], built: [], items: [], qty: {}, crafted: [], mastered: [], leveled: [] };
+  return { parts: [], built: [], items: [], qty: {}, crafted: [], mastered: [], leveled: [], goals: [] };
 }
 
 export function craftKey(itemId: string, partId: string) {
@@ -47,6 +47,7 @@ export function normalizeCollection(value: unknown): Collection {
     crafted: craftedKeys(raw.crafted),
     mastered,
     leveled: strings(raw.leveled).filter((id) => !done.has(id)),
+    goals: strings(raw.goals).slice(0, 8),
   };
   const saved = readDossier(raw.dossier);
   if (saved) collection.dossier = saved;

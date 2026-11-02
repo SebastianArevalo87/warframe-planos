@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { PriceQuote } from "./lib/market.ts";
+import { marketItemUrl, type PriceQuote } from "./lib/market.ts";
 import type { SellRow } from "./lib/catalogRemote.ts";
 import { KIND_LABEL, matchesKind, type KindFilter } from "./types.ts";
 import { FilterBar } from "./FilterBar.tsx";
@@ -30,7 +30,7 @@ export function SellPage({
   if (rows.length === 0) {
     return (
       <p className="text-mute">
-        Cuando construyas un ítem y te queden planos vendibles, o tengas un ítem sin planos, aparecen aquí con su precio.
+        Cuando tengas planos de algo que ya dominaste, aparecen aquí. Lo que se vende en el market lleva el precio y el enlace para publicarlo.
       </p>
     );
   }
@@ -77,17 +77,54 @@ export function SellPage({
                       {names.part(part.id, part.title, row.id, row.name)}
                       <span className="text-mute"> × {part.qty}</span>
                     </span>
-                    <span className="shrink-0 text-right text-mute">
-                      {pricesLoading && !quote ? "…" : quote ? `${quote.platinum} pl · ${subtotal} pl` : "sin precio"}
-                      {quote && (
+                    <span className="flex shrink-0 items-center gap-2 text-right text-mute">
+                      {part.slug ? (
                         <>
-                          {" · "}
-                          <a className="text-gold underline-offset-2 hover:underline" href={quote.url} target="_blank" rel="noreferrer">
-                            Market
+                          <span>
+                            {pricesLoading && !quote
+                              ? "…"
+                              : quote
+                                ? part.qty > 1
+                                  ? `${quote.platinum} pl × ${part.qty} = ${subtotal} pl`
+                                  : `${quote.platinum} pl`
+                                : "sin precio"}
+                          </span>
+                          <a
+                            className="rounded-full border border-gold px-2.5 py-1 text-xs text-gold hover:bg-gold hover:text-ink"
+                            href={quote?.url ?? marketItemUrl(part.slug)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Publicar
                           </a>
                         </>
+                      ) : (
+                        <span>Por créditos en el juego</span>
                       )}
                     </span>
+                  </li>
+                );
+              })}
+              {row.gaps.map((gap) => {
+                const quote = gap.slug ? prices[gap.slug] : null;
+                const setQuote = row.setSlug ? prices[row.setSlug] : null;
+                const openRelic = gap.relics.find((relic) => !relic.vaulted);
+                const closed = gap.relics.find((relic) => relic.vaulted);
+                return (
+                  <li key={gap.id} className="rounded-xl border border-line/80 px-2 py-2 text-xs text-mute">
+                    <p className="text-bone">Te falta {names.part(gap.id, gap.title, row.id, row.name)}.</p>
+                    {gap.slug && (
+                      <p className="mt-1">
+                        Comprarla: {pricesLoading && !quote ? "…" : quote ? `${quote.platinum} pl` : "sin precio"}
+                        {setQuote ? `. El set: ${setQuote.platinum} pl` : ""}
+                        {" · "}
+                        <a className="text-gold underline-offset-2 hover:underline" href={marketItemUrl(gap.slug)} target="_blank" rel="noreferrer">
+                          Ver en el market
+                        </a>
+                      </p>
+                    )}
+                    {openRelic && <p className="mt-1">O juega {openRelic.name}. Esa reliquia sigue saliendo.</p>}
+                    {!openRelic && closed && <p className="mt-1">{closed.name} ya no sale al jugarla.</p>}
                   </li>
                 );
               })}

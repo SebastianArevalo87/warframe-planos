@@ -37,14 +37,10 @@ export function MasteryPage({
   mastered,
   leveled,
   initialGroup = "warframe",
-  onToggle,
-  onToggleLeveled,
 }: {
   mastered: string[];
   leveled: string[];
   initialGroup?: MasteryGroupId;
-  onToggle: (itemId: string) => void;
-  onToggleLeveled: (itemId: string) => void;
 }) {
   const [rows, setRows] = useState<MasteryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,8 +157,6 @@ export function MasteryPage({
                     dimmed={!owned && !partial}
                     pressed={owned}
                     leveled={partial}
-                    onClick={() => onToggle(row.id)}
-                    onToggleLeveled={() => onToggleLeveled(row.id)}
                   />
                 </li>
               );

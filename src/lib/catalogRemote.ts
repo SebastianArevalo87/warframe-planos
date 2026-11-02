@@ -405,6 +405,13 @@ export async function fetchItemDetail(id: string): Promise<CatalogItem | null> {
   };
 }
 
+export type SellGap = {
+  id: string;
+  title: string;
+  slug: string | null;
+  relics: PartRelic[];
+};
+
 export type SellPart = {
   id: string;
   title: string;
@@ -419,6 +426,7 @@ export type SellRow = {
   image: string | null;
   setSlug: string | null;
   parts: SellPart[];
+  gaps: SellGap[];
 };
 
 function asSellRows(value: unknown): SellRow[] {
@@ -455,6 +463,7 @@ function asSellRows(value: unknown): SellRow[] {
         image: typeof row.image === "string" ? row.image : null,
         setSlug: typeof row.setSlug === "string" ? row.setSlug : null,
         parts,
+        gaps: [],
       },
     ];
   });

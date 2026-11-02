@@ -4,9 +4,7 @@ import { useNames } from "./Locale.tsx";
 import { MasteryPage, masteryGroup } from "./MasteryPage.tsx";
 import { sortLocale } from "./lib/locale.ts";
 import { useShowFounders } from "./lib/founders.ts";
-import { craftKey } from "./lib/collection.ts";
 import { KIND_LABEL, type ItemKind } from "./types.ts";
-import { MaterialList } from "./MaterialTotals.tsx";
 import { Laurel } from "./Laurel.tsx";
 
 type GroupId =
@@ -130,28 +128,20 @@ function letterOf(name: string) {
 
 export function LoadPage({
   qty,
-  crafted,
   onToggle,
-  onToggleCrafted,
   onOpen,
   mastered,
   leveled,
-  built,
-  onToggleMastered,
-  onToggleBuilt,
-  onToggleLeveled,
+  goals,
+  onToggleGoal,
 }: {
   qty: Record<string, number>;
-  crafted: string[];
   onToggle: (partId: string, next: number) => void;
-  onToggleCrafted: (itemId: string, partId: string) => void;
   onOpen: (itemId: string) => void;
   mastered: string[];
+  goals: string[];
+  onToggleGoal: (itemId: string) => void;
   leveled: string[];
-  built: string[];
-  onToggleMastered: (itemId: string) => void;
-  onToggleBuilt: (itemId: string) => void;
-  onToggleLeveled: (itemId: string) => void;
 }) {
   const [rows, setRows] = useState<LoadRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -163,9 +153,8 @@ export function LoadPage({
   const names = useNames();
   const foundersVisible = useShowFounders();
   const ordering = sortLocale(names.locale);
-  const craftedKeys = useMemo(() => new Set(crafted), [crafted]);
   const masteredIds = useMemo(() => new Set(mastered), [mastered]);
-  const builtIds = useMemo(() => new Set(built), [built]);
+  const goalIds = useMemo(() => new Set(goals), [goals]);
 
   useEffect(() => {
     let cancelled = false;
@@ -266,8 +255,6 @@ export function LoadPage({
           mastered={mastered}
           leveled={leveled}
           initialGroup={opened ?? "warframe"}
-          onToggle={onToggleMastered}
-          onToggleLeveled={onToggleLeveled}
         />
       ) : (
         <>
@@ -322,14 +309,11 @@ export function LoadPage({
                           itemLabel={names.item(item.itemId, item.itemName)}
                           showKind={group === "varios"}
                           qty={qty}
-                          craftedKeys={craftedKeys}
                           masteredIds={masteredIds}
-                          builtIds={builtIds}
+                          goalIds={goalIds}
                           onOpen={onOpen}
                           onToggle={onToggle}
-                          onToggleCrafted={onToggleCrafted}
-                          onToggleMastered={onToggleMastered}
-                          onToggleBuilt={onToggleBuilt}
+                          onToggleGoal={onToggleGoal}
                         />
                       ))}
                     </div>
@@ -349,45 +333,27 @@ function BlueprintCard({
   itemLabel,
   showKind,
   qty,
-  craftedKeys,
   masteredIds,
-  builtIds,
+  goalIds,
   onOpen,
   onToggle,
-  onToggleCrafted,
-  onToggleMastered,
-  onToggleBuilt,
+  onToggleGoal,
 }: {
   item: ItemBlock;
   itemLabel: string;
   showKind: boolean;
   qty: Record<string, number>;
-  craftedKeys: Set<string>;
   masteredIds: Set<string>;
-  builtIds: Set<string>;
+  goalIds: Set<string>;
   onOpen: (itemId: string) => void;
   onToggle: (partId: string, next: number) => void;
-  onToggleCrafted: (itemId: string, partId: string) => void;
-  onToggleMastered: (itemId: string) => void;
-  onToggleBuilt: (itemId: string) => void;
+  onToggleGoal: (itemId: string) => void;
 }) {
   const names = useNames();
   const isMastered = masteredIds.has(item.itemId);
-  const itemBuilt = builtIds.has(item.itemId) || isMastered;
-  const marked = item.parts.filter((part) => (qty[part.partId] ?? 0) > 0 || craftedKeys.has(craftKey(item.itemId, part.partId)));
-  const hasMarks = marked.length > 0;
+  const farming = goalIds.has(item.itemId);
+  const hasMarks = item.parts.some((part) => (qty[part.partId] ?? 0) > 0);
   const [open, setOpen] = useState(false);
-
-  function pieceDone(part: LoadRow) {
-    const crafted = craftedKeys.has(craftKey(item.itemId, part.partId));
-    if (part.short === "Plano" || item.parts.length === 1) return itemBuilt || crafted;
-    return crafted;
-  }
-
-  function markPiece(part: LoadRow) {
-    if (part.short === "Plano" && item.parts.length > 1) onToggleBuilt(item.itemId);
-    else onToggleCrafted(item.itemId, part.partId);
-  }
 
   return (
     <article className={hasMarks ? "min-w-0 self-start rounded-2xl border border-gold/40 bg-panel p-3" : "min-w-0 self-start rounded-2xl border border-line bg-panel p-3"}>
@@ -411,42 +377,39 @@ function BlueprintCard({
               </span>
               <Chevron open={open} />
             </button>
-            <button
-              type="button"
-              aria-pressed={isMastered}
-              aria-label={isMastered ? `${itemLabel}. Quitar dominado` : `${itemLabel}. Marcar dominado`}
-              title={isMastered ? "Dominado" : "Marcar dominado"}
-              onClick={() => onToggleMastered(item.itemId)}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
-            >
-              <Laurel lit={isMastered} />
-            </button>
+            {isMastered && (
+              <span title="Dominado en el perfil" className="grid h-9 w-9 shrink-0 place-items-center" aria-label={`${itemLabel}. Dominado en el perfil`}>
+                <Laurel lit />
+              </span>
+            )}
+            {!isMastered && (
+              <button
+                type="button"
+                aria-pressed={farming}
+                onClick={() => onToggleGoal(item.itemId)}
+                className={farming ? "shrink-0 rounded-full border border-gold px-2.5 py-1 text-xs text-gold" : "shrink-0 rounded-full border border-line px-2.5 py-1 text-xs text-mute hover:border-gold hover:text-bone"}
+              >
+                {farming ? "En el plan" : "Farmear"}
+              </button>
+            )}
           </div>
           {!open && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {item.parts.map((part) => {
                 const amount = qty[part.partId] ?? 0;
-                const done = pieceDone(part);
                 return (
-                  <button
+                  <span
                     key={part.partId}
-                    type="button"
-                    aria-pressed={done}
-                    aria-label={done ? `${part.short} de ${itemLabel}. Construido` : `${part.short} de ${itemLabel}. Marcar construido`}
-                    onClick={() => markPiece(part)}
                     className={
-                      done
-                        ? "inline-flex items-center gap-1 rounded-full border border-moss/40 bg-moss/10 px-2 py-0.5 text-xs text-moss"
-                        : amount > 0
-                          ? "inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-xs text-gold"
-                          : "inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs text-mute hover:border-gold"
+                      amount > 0
+                        ? "inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-xs text-gold"
+                        : "inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs text-mute"
                     }
                   >
                     {part.partImage && <img src={part.partImage} alt="" width={16} height={16} className="h-4 w-4 object-contain" />}
                     {part.short}
                     {amount > 0 && <span className="tabular-nums">{amount}</span>}
-                    {done && <span>hecha</span>}
-                  </button>
+                  </span>
                 );
               })}
             </div>
@@ -457,35 +420,13 @@ function BlueprintCard({
         {item.parts.map((part) => {
           const amount = qty[part.partId] ?? 0;
           const partLabel = names.part(part.partId, part.title, item.itemId, item.itemName);
-          const done = pieceDone(part);
-          const finalPiece = part.short === "Plano" && item.parts.length > 1;
-          const canBuild = part.materials.length > 0;
           return (
             <li key={part.partId} className={amount > 0 ? "rounded-xl border border-gold/40 bg-gold/5 px-2 py-2" : "rounded-xl border border-line/80 px-2 py-2"}>
               <div className="flex flex-wrap items-center gap-2">
                 {part.partImage && <Icon src={part.partImage} />}
                 <span className="min-w-0 flex-1 truncate text-sm text-bone">{part.short}</span>
                 <Count label={`${part.short} de ${itemLabel}`} value={amount} onChange={(next) => onToggle(part.partId, next)} />
-                {canBuild && (
-                  <button
-                    type="button"
-                    aria-pressed={done}
-                    onClick={() => markPiece(part)}
-                    className={
-                      done
-                        ? "rounded-full border border-moss/40 px-2.5 py-1 text-xs text-moss"
-                        : "rounded-full border border-line px-2.5 py-1 text-xs text-bone hover:border-gold"
-                    }
-                  >
-                    {done ? (finalPiece ? "Construido" : "Construida") : finalPiece ? "Construir" : "Pieza"}
-                  </button>
-                )}
               </div>
-              {part.materials.length > 0 && (
-                <div className="mt-2">
-                  <MaterialList materials={part.materials} muted={done} />
-                </div>
-              )}
               <span className="sr-only">{partLabel}</span>
             </li>
           );

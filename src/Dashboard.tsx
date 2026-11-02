@@ -7,11 +7,12 @@ import { fetchWorld, formatTimeLeft, type WorldNow } from "./lib/worldstate.ts";
 import { fetchVendors, offerLabel, type Shop, type VendorBoard } from "./lib/vendors.ts";
 import { useNames } from "./Locale.tsx";
 import { useShowFounders } from "./lib/founders.ts";
+import { FarmPlan } from "./FarmPlan.tsx";
 import { KIND_LABEL, type Collection, type ItemKind, type KindFilter, type ProfileDossier, type StatusFilter } from "./types.ts";
 import { alignmentLabel, markLabel, syndicateName } from "./lib/officialProfile.ts";
 import type { MasteryGroupId } from "./MasteryPage.tsx";
 
-type SectionId = "alerts" | "vendors" | "weather" | "mastery";
+type SectionId = "alerts" | "vendors" | "weather" | "mastery" | "farm";
 
 export function Dashboard({
   stats,
@@ -21,6 +22,9 @@ export function Dashboard({
   onSearch,
   onSell,
   onMastered,
+  onToggleBuilt,
+  onToggleCrafted,
+  onToggleGoal,
 }: {
   stats: DashboardStats | null;
   accountName: string;
@@ -29,6 +33,9 @@ export function Dashboard({
   onSearch: (kind: KindFilter, status: StatusFilter) => void;
   onSell: () => void;
   onMastered: (group?: MasteryGroupId) => void;
+  onToggleBuilt: (id: string) => void;
+  onToggleCrafted: (itemId: string, partId: string) => void;
+  onToggleGoal: (id: string) => void;
 }) {
   const foundersVisible = useShowFounders();
   const [world, setWorld] = useState<WorldNow | null>(null);
@@ -149,6 +156,14 @@ export function Dashboard({
       {section === null && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Gate
+            kicker="Tu farmeo"
+            title={collection.goals.length === 0 ? "Nada elegido" : collection.goals.length === 1 ? "1 elegido" : `${collection.goals.length} elegidos`}
+            hint="El plan de lo que marcaste: de dónde sale cada plano."
+            onOpen={() => setSection("farm")}
+          >
+            <Preview>{collection.goals.length > 0 ? "Ver el camino" : "Elige en Marcar"}</Preview>
+          </Gate>
+          <Gate
             kicker="Alertas"
             title={world ? `${world.alerts.length} activas` : worldError ? "Sin conexión" : "Leyendo…"}
             hint={world?.alerts[0] ? `${world.alerts[0].title} · ${world.alerts[0].timeLeft}` : world ? "No hay alertas ahora." : "Misiones con recompensa y eventos."}
@@ -189,6 +204,19 @@ export function Dashboard({
             <Preview>{gear ? `${masteredCount.weapons.owned} armas` : "…"}</Preview>
           </Gate>
         </div>
+      )}
+
+      {section === "farm" && (
+        <Detail title="Tu farmeo" hint="Cada plano, de dónde sale, y qué hay que fabricar antes." onBack={() => setSection(null)}>
+          <FarmPlan
+            goals={collection.goals}
+            collection={collection}
+            onOpen={onOpen}
+            onRemove={onToggleGoal}
+            onToggleBuilt={onToggleBuilt}
+            onToggleCrafted={onToggleCrafted}
+          />
+        </Detail>
       )}
 
       {section === "alerts" && (

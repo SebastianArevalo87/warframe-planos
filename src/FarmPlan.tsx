@@ -242,8 +242,13 @@ export function FarmPlan({
                 >
                   {done ? "Construido" : "Ya lo construí"}
                 </button>
-                <button type="button" onClick={() => onRemove(item.id)} className="rounded-full border border-line px-3 py-1.5 text-sm text-mute hover:text-bone">
-                  Quitar
+                <button
+                  type="button"
+                  onClick={() => onRemove(item.id)}
+                  className="rounded-full border border-gold px-3 py-1.5 text-sm text-gold hover:bg-gold/10"
+                  title="Lo saca del plan de farmeo"
+                >
+                  Ya lo farmeé
                 </button>
               </div>
             </div>

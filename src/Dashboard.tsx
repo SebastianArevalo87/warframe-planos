@@ -209,7 +209,7 @@ export function Dashboard({
       )}
 
       {section === "farm" && (
-        <Detail title="Tu farmeo" hint="Arriba ves las etapas donde puede caer ahora. Pulsa Me cayó cuando te toque el plano." onBack={() => setSection(null)}>
+        <Detail title="Tu farmeo" hint="Arriba ves dónde cae. Me cayó anota el plano; Ya lo farmeé lo saca del plan." onBack={() => setSection(null)}>
           <FarmPlan
             goals={collection.goals}
             collection={collection}

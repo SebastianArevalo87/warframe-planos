@@ -388,6 +388,8 @@ export function App() {
     };
   }, [openId, relicsOpen]);
 
+  const saveChain = useRef(Promise.resolve());
+
   function writeAccount(next: Collection, nextProfile = profile) {
     setCollection(next);
     const stored: Profile = {
@@ -395,7 +397,10 @@ export function App() {
       mastery: masteryValue(nextProfile.mastery),
     };
     if (supabaseEnabled && session) {
-      void saveRemoteAccount(session.sub, { ...stored, collection: next })
+      const userId = session.sub;
+      saveChain.current = saveChain.current
+        .catch(() => undefined)
+        .then(() => saveRemoteAccount(userId, { ...stored, collection: next }))
         .then(() => setSavedTick((tick) => tick + 1))
         .catch(() => {
           setNotice("No pude guardar la lista. Inténtalo otra vez.");
@@ -722,6 +727,7 @@ export function App() {
             onToggleBuilt={toggleBuilt}
             onToggleCrafted={toggleCrafted}
             onToggleGoal={toggleGoal}
+            onPartQty={setPartQty}
             onMastered={(group) => {
               window.location.hash = group ? `dominados-${group}` : "dominados";
               openPage("load");

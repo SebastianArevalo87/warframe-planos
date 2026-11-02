@@ -33,6 +33,7 @@ export function FarmPlan({
   collection,
   onOpen,
   onRemove,
+  onPartQty,
   onToggleBuilt,
   onToggleCrafted,
 }: {
@@ -40,6 +41,7 @@ export function FarmPlan({
   collection: Collection;
   onOpen: (id: string) => void;
   onRemove: (id: string) => void;
+  onPartQty: (partId: string, next: number) => void;
   onToggleBuilt: (id: string) => void;
   onToggleCrafted: (itemId: string, partId: string) => void;
 }) {
@@ -117,7 +119,12 @@ export function FarmPlan({
                     <div className="flex flex-wrap items-center gap-2">
                       {part.image && <img src={part.image} alt="" className="h-8 w-8 object-contain" />}
                       <span className="min-w-0 flex-1 text-sm text-bone">{names.part(part.id, part.title, item.id, item.name)}</span>
-                      <span className="text-xs text-mute">{amount > 0 ? `${amount} en el inventario` : "te falta el plano"}</span>
+                      <Count
+                        value={amount}
+                        label={names.part(part.id, part.title, item.id, item.name)}
+                        onChange={(next) => onPartQty(part.id, next)}
+                      />
+                      <span className="text-xs text-mute">{amount > 0 ? "en el inventario" : "te falta el plano"}</span>
                       {part.materials.length > 0 && !finalPiece && (
                         <button
                           type="button"
@@ -142,6 +149,32 @@ export function FarmPlan({
           </article>
         );
       })}
+    </div>
+  );
+}
+
+function Count({ value, label, onChange }: { value: number; label: string; onChange: (next: number) => void }) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        aria-label={`Una menos de ${label}`}
+        disabled={value <= 0}
+        onClick={() => onChange(value - 1)}
+        className="grid h-7 w-7 place-items-center rounded-full border border-line text-bone disabled:opacity-30"
+      >
+        −
+      </button>
+      <span className="w-6 text-center text-sm tabular-nums text-bone">{value}</span>
+      <button
+        type="button"
+        aria-label={`Una más de ${label}`}
+        disabled={value >= 99}
+        onClick={() => onChange(value + 1)}
+        className="grid h-7 w-7 place-items-center rounded-full border border-line text-bone disabled:opacity-30"
+      >
+        +
+      </button>
     </div>
   );
 }

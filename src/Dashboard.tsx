@@ -25,6 +25,7 @@ export function Dashboard({
   onToggleBuilt,
   onToggleCrafted,
   onToggleGoal,
+  onPartQty,
 }: {
   stats: DashboardStats | null;
   accountName: string;
@@ -36,6 +37,7 @@ export function Dashboard({
   onToggleBuilt: (id: string) => void;
   onToggleCrafted: (itemId: string, partId: string) => void;
   onToggleGoal: (id: string) => void;
+  onPartQty: (partId: string, next: number) => void;
 }) {
   const foundersVisible = useShowFounders();
   const [world, setWorld] = useState<WorldNow | null>(null);
@@ -207,12 +209,13 @@ export function Dashboard({
       )}
 
       {section === "farm" && (
-        <Detail title="Tu farmeo" hint="Cada plano, de dónde sale, y qué hay que fabricar antes." onBack={() => setSection(null)}>
+        <Detail title="Tu farmeo" hint="Suma un plano cuando te caiga. Aquí ves de dónde sale y qué hay que fabricar antes." onBack={() => setSection(null)}>
           <FarmPlan
             goals={collection.goals}
             collection={collection}
             onOpen={onOpen}
             onRemove={onToggleGoal}
+            onPartQty={onPartQty}
             onToggleBuilt={onToggleBuilt}
             onToggleCrafted={onToggleCrafted}
           />

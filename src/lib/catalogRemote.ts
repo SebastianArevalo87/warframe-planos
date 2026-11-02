@@ -166,6 +166,8 @@ export async function fetchDashboard(): Promise<DashboardStats> {
   return asStats(data);
 }
 
+const HIDDEN_IDS = new Set(["/Lotus/Powersuits/SiriusOrion/OrionSuit"]);
+
 export const ITEM_PAGE_SIZE = 24;
 
 export type ItemPage = {
@@ -186,10 +188,11 @@ export async function fetchItemList(kind: string, query: string, status: string,
   if (error) throw error;
   if (!data || typeof data !== "object" || Array.isArray(data)) return { items: [], total: 0 };
   const page = data as { items?: unknown; total?: unknown };
-  const items = Array.isArray(page.items) ? (page.items as ItemSummary[]) : [];
+  const raw = Array.isArray(page.items) ? (page.items as ItemSummary[]) : [];
+  const items = raw.filter((item) => !HIDDEN_IDS.has(item.id));
   return {
     items,
-    total: Number(page.total) || 0,
+    total: Math.max(0, (Number(page.total) || 0) - (raw.length - items.length)),
   };
 }
 
@@ -316,7 +319,7 @@ export async function fetchItemIndex(): Promise<MasteryRow[]> {
     const batch = (data ?? []) as unknown[];
     for (const entry of batch) {
       const row = asMasteryRow(entry);
-      if (row && (showFounders() || !isFounderItem(row.id))) rows.push(row);
+      if (row && !HIDDEN_IDS.has(row.id) && (showFounders() || !isFounderItem(row.id))) rows.push(row);
     }
     if (batch.length < pageSize) break;
   }

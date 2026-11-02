@@ -17,6 +17,7 @@ export type RawItem = {
   type?: string;
   productCategory?: string;
   masterable?: boolean;
+  excludeFromCodex?: boolean;
   vaulted?: boolean;
   imageName?: string;
   components?: RawComponent[];
@@ -487,6 +488,7 @@ export function buildCatalog(
       const kind = kindOf(raw, group.kind);
       if (!name || !id || !kind || seen.has(id)) continue;
       if (!isCraftedAmpPart(raw) && raw.masterable === false) continue;
+      if (raw.excludeFromCodex === true && raw.productCategory === "SpecialItems") continue;
       if (/\bexalted\b/i.test(name)) continue;
       if (/doppelganger/i.test(id)) continue;
       seen.add(id);

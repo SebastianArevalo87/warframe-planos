@@ -45,6 +45,16 @@ type DropRoute = {
   chances: DropChance[];
 };
 
+type CatchPart = {
+  partId: string;
+  itemId: string;
+  itemName: string;
+  partTitle: string;
+  english: string;
+  image: string | null;
+  bonus: boolean;
+};
+
 const RARITY: Record<RelicRarity, string> = {
   common: "común",
   uncommon: "poco común",
@@ -179,6 +189,38 @@ export function FarmPlan({
     [items, sources, fissures, sideDrops, collection.qty],
   );
 
+  const catchList = useMemo(() => {
+    const byId = new Map<string, CatchPart>();
+    for (const item of items) {
+      for (const part of item.parts) {
+        byId.set(part.id, {
+          partId: part.id,
+          itemId: item.id,
+          itemName: item.name,
+          partTitle: part.title,
+          english: part.english,
+          image: part.image,
+          bonus: false,
+        });
+      }
+    }
+    for (const extras of Object.values(sideDrops)) {
+      for (const part of extras) {
+        if (byId.has(part.partId)) continue;
+        byId.set(part.partId, {
+          partId: part.partId,
+          itemId: part.itemId,
+          itemName: part.itemName,
+          partTitle: part.partTitle,
+          english: part.english,
+          image: part.image,
+          bonus: true,
+        });
+      }
+    }
+    return [...byId.values()];
+  }, [items, sideDrops]);
+
   if (goals.length === 0) {
     return <p className="text-sm text-mute">En Marcar, pulsa Farmear en lo que te falte. Aquí queda el camino de cada plano.</p>;
   }
@@ -190,6 +232,7 @@ export function FarmPlan({
 
   return (
     <div className="flex flex-col gap-4">
+      <DropCatcher parts={catchList} qty={collection.qty} onCatch={onPartQty} />
       {routes.length > 0 && (
         <section className="rounded-2xl border border-gold/30 bg-panel p-4">
           <h3 className="text-sm font-medium text-bone">Dónde cae ahora</h3>
@@ -306,6 +349,99 @@ export function FarmPlan({
       })}
     </div>
   );
+}
+
+function DropCatcher({
+  parts,
+  qty,
+  onCatch,
+}: {
+  parts: CatchPart[];
+  qty: Record<string, number>;
+  onCatch: (partId: string, next: number) => void;
+}) {
+  const names = useNames();
+  const [query, setQuery] = useState("");
+  const [flash, setFlash] = useState("");
+  const matches = useMemo(() => {
+    const words = fold(query).split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [];
+    return parts
+      .map((part) => {
+        const label = names.part(part.partId, part.partTitle, part.itemId, part.itemName);
+        const itemLabel = names.item(part.itemId, part.itemName);
+        const haystack = fold(`${label} ${itemLabel} ${part.partTitle} ${part.itemName} ${part.english}`);
+        return { part, label, itemLabel, haystack };
+      })
+      .filter((row) => words.every((word) => row.haystack.includes(word)))
+      .slice(0, 8);
+  }, [names, parts, query]);
+
+  function catchPart(partId: string, label: string) {
+    const amount = qty[partId] ?? 0;
+    if (amount >= 99) return;
+    onCatch(partId, amount + 1);
+    setFlash(`${label} · × ${amount + 1}`);
+    setQuery("");
+  }
+
+  return (
+    <section className="rounded-2xl border border-gold/30 bg-panel p-4">
+      <h3 className="text-sm font-medium text-bone">¿Qué te cayó?</h3>
+      <p className="mt-1 text-xs text-mute">Escribí el plano y tocá Me cayó. Podés sumar el mismo varias veces. No hace falta marcar la reliquia.</p>
+      <label className="mt-3 block">
+        <span className="sr-only">Buscar un plano del farmeo</span>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || matches.length === 0) return;
+            event.preventDefault();
+            catchPart(matches[0].part.partId, matches[0].label);
+          }}
+          placeholder="Neurópticas, chasis, Sevagoth…"
+          className="w-full rounded-xl border border-line bg-ink px-3 py-2 text-sm text-bone outline-none placeholder:text-mute focus:border-gold"
+          autoComplete="off"
+        />
+      </label>
+      {flash && <p className="mt-2 text-xs text-gold">{flash}</p>}
+      {query.trim() && matches.length === 0 && <p className="mt-2 text-xs text-mute">Nada de tu farmeo coincide.</p>}
+      {matches.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {matches.map(({ part, label, itemLabel }) => {
+            const amount = qty[part.partId] ?? 0;
+            return (
+              <li key={part.partId}>
+                <button
+                  type="button"
+                  onClick={() => catchPart(part.partId, label)}
+                  className="flex w-full flex-wrap items-center gap-2 rounded-xl border border-line/80 px-3 py-2 text-left hover:border-gold"
+                >
+                  {part.image && <img src={part.image} alt="" className="h-7 w-7 object-contain" />}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-bone">{label}</span>
+                    <span className="block truncate text-xs text-mute">
+                      {itemLabel}
+                      {part.bonus ? " · también cae en tu ruta" : ""}
+                      {amount > 0 ? ` · ya × ${amount}` : ""}
+                    </span>
+                  </span>
+                  <span className="rounded-full border border-gold px-2.5 py-1 text-xs text-gold">Me cayó</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function fold(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
 }
 
 function Count({ value, label, onChange }: { value: number; label: string; onChange: (next: number) => void }) {

@@ -355,10 +355,7 @@ function BlueprintCard({
   const names = useNames();
   const marked = item.parts.filter((part) => (qty[part.partId] ?? 0) > 0 || craftedKeys.has(craftKey(item.itemId, part.partId)));
   const hasMarks = marked.length > 0;
-  const [open, setOpen] = useState(hasMarks);
-  useEffect(() => {
-    setOpen(hasMarks);
-  }, [hasMarks]);
+  const [open, setOpen] = useState(false);
   return (
     <article className={hasMarks ? "min-w-0 self-start rounded-2xl border border-gold/40 bg-panel p-3" : "min-w-0 self-start rounded-2xl border border-line bg-panel p-3"}>
       <div className="flex w-full min-w-0 items-center gap-3">

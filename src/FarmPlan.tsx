@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchItemIndex } from "./lib/catalogRemote.ts";
+import { fetchItemSources, type ItemSources } from "./lib/partSources.ts";
 import { supabase } from "./lib/supabase.ts";
 import { craftKey } from "./lib/collection.ts";
 import { MaterialList } from "./MaterialTotals.tsx";
@@ -48,6 +49,8 @@ export function FarmPlan({
   const names = useNames();
   const [items, setItems] = useState<PlanItem[]>([]);
   const [known, setKnown] = useState<Set<string>>(new Set());
+  const [sources, setSources] = useState<Record<string, ItemSources>>({});
+  const [sourcesReady, setSourcesReady] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -73,6 +76,29 @@ export function FarmPlan({
       cancelled = true;
     };
   }, [goals]);
+
+  useEffect(() => {
+    const pending = items.filter((item) => item.parts.some((part) => part.relics.length === 0));
+    if (pending.length === 0) {
+      setSources({});
+      setSourcesReady(true);
+      return;
+    }
+    let cancelled = false;
+    setSourcesReady(false);
+    void Promise.all(pending.map(async (item) => [item.id, await fetchItemSources(item.name)] as const)).then((rows) => {
+      if (cancelled) return;
+      const next: Record<string, ItemSources> = {};
+      for (const [id, source] of rows) {
+        if (source) next[id] = source;
+      }
+      setSources(next);
+      setSourcesReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
 
   if (goals.length === 0) {
     return <p className="text-sm text-mute">En Marcar, pulsa Farmear en lo que te falte. Aquí queda el camino de cada plano.</p>;
@@ -135,7 +161,12 @@ export function FarmPlan({
                         </button>
                       )}
                     </div>
-                    <p className="mt-1 text-xs text-mute">{sourceLine(part.relics)}</p>
+                    <SourceNote
+                      relics={part.relics}
+                      source={partSource(sources[item.id], part.id, part.short, finalPiece)}
+                      wiki={sources[item.id]?.wiki ?? null}
+                      pending={!sourcesReady && part.relics.length === 0}
+                    />
                     {part.materials.length > 0 && (
                       <div className="mt-2">
                         <MaterialList materials={part.materials} muted={pieceDone} />
@@ -176,6 +207,54 @@ function Count({ value, label, onChange }: { value: number; label: string; onCha
         +
       </button>
     </div>
+  );
+}
+
+const ROLE: Record<string, string> = {
+  Plano: "Blueprint",
+  Chasis: "Chassis",
+  Neurópticas: "Neuroptics",
+  Sistemas: "Systems",
+  Cañón: "Barrel",
+  Receptor: "Receiver",
+  Culata: "Stock",
+  Hoja: "Blade",
+  Empuñadura: "Handle",
+};
+
+function partSource(pack: ItemSources | undefined, partId: string, short: string, finalPiece: boolean) {
+  if (!pack) return undefined;
+  const byRole = finalPiece ? pack.byName.Blueprint : pack.byName[ROLE[short] ?? short];
+  return pack.byId[partId] ?? byRole;
+}
+
+function SourceNote({
+  relics,
+  source,
+  wiki,
+  pending,
+}: {
+  relics: PartRelic[];
+  source: { lines: string[]; market: string | null } | undefined;
+  wiki: string | null;
+  pending: boolean;
+}) {
+  if (relics.length > 0) return <p className="mt-1 text-xs text-mute">{sourceLine(relics)}</p>;
+  if (pending && !source) return <p className="mt-1 text-xs text-mute">Buscando de dónde sale…</p>;
+  if (source && source.lines.length > 0) return <p className="mt-1 text-xs text-mute">{source.lines.join("  ·  ")}</p>;
+  if (source?.market) return <p className="mt-1 text-xs text-mute">{source.market}</p>;
+  return (
+    <p className="mt-1 text-xs text-mute">
+      La tabla oficial no lo lista. Puede salir de una aventura, del dojo o de un sindicato.
+      {wiki && (
+        <>
+          {" "}
+          <a className="text-gold underline-offset-2 hover:underline" href={wiki} target="_blank" rel="noreferrer">
+            Ver en la wiki
+          </a>
+        </>
+      )}
+    </p>
   );
 }
 

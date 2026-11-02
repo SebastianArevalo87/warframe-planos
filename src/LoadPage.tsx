@@ -373,15 +373,25 @@ function BlueprintCard({
           <span className="min-w-0 flex-1">
             <span className="block truncate text-base font-medium text-bone">{itemLabel}</span>
             {showKind && <span className="block text-xs text-mute">{KIND_LABEL[item.kind]}</span>}
-            {!open && hasMarks && (
-              <span className="mt-1 flex flex-wrap gap-x-2 gap-y-1">
-                {marked.map((part) => {
+            {!open && (
+              <span className="mt-2 flex flex-wrap gap-1.5">
+                {item.parts.map((part) => {
                   const amount = qty[part.partId] ?? 0;
+                  const builtPiece = craftedKeys.has(craftKey(item.itemId, part.partId));
+                  const owned = amount > 0 || builtPiece;
                   return (
-                    <span key={part.partId} className="inline-flex items-center gap-1 text-xs text-gold">
+                    <span
+                      key={part.partId}
+                      className={
+                        owned
+                          ? "inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-xs text-gold"
+                          : "inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs text-mute"
+                      }
+                    >
                       {part.partImage && <img src={part.partImage} alt="" width={16} height={16} className="h-4 w-4 object-contain" />}
                       {part.short}
-                      {amount > 1 ? ` ${amount}` : ""}
+                      {amount > 0 && <span className="tabular-nums">{amount}</span>}
+                      {builtPiece && <span className="text-moss">hecha</span>}
                     </span>
                   );
                 })}

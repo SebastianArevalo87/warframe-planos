@@ -7,7 +7,8 @@ import { fetchWorld, formatTimeLeft, type WorldNow } from "./lib/worldstate.ts";
 import { fetchVendors, offerLabel, type Shop, type VendorBoard } from "./lib/vendors.ts";
 import { useNames } from "./Locale.tsx";
 import { useShowFounders } from "./lib/founders.ts";
-import { KIND_LABEL, type Collection, type ItemKind, type KindFilter, type StatusFilter } from "./types.ts";
+import { KIND_LABEL, type Collection, type ItemKind, type KindFilter, type ProfileDossier, type StatusFilter } from "./types.ts";
+import { alignmentLabel, markLabel, syndicateName } from "./lib/officialProfile.ts";
 import type { MasteryGroupId } from "./MasteryPage.tsx";
 
 type SectionId = "alerts" | "vendors" | "weather" | "mastery";
@@ -251,10 +252,11 @@ export function Dashboard({
       {section === "mastery" && (
         <Detail
           title="Maestría"
-          hint={accountName ? accountName : "Lo marcas a mano. Aquí está lo que te acerca al siguiente rango."}
+          hint={collection.dossier ? `Rango ${collection.dossier.rank} en el perfil oficial.` : accountName ? accountName : "Lo marcas a mano. Aquí está lo que te acerca al siguiente rango."}
           onBack={() => setSection(null)}
         >
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          {collection.dossier && <ProfileCard dossier={collection.dossier} />}
+          <div className={`${collection.dossier ? "mt-6 " : ""}grid grid-cols-1 gap-6 lg:grid-cols-12`}>
             <div className="lg:col-span-7">
               <MasteryHelp targets={targets} shared={shared} partsReady={parts !== null} onOpen={onOpen} />
             </div>
@@ -305,6 +307,67 @@ export function Dashboard({
           </div>
         </Detail>
       )}
+    </div>
+  );
+}
+
+function ProfileCard({ dossier }: { dossier: ProfileDossier }) {
+  const since = Date.parse(dossier.created);
+  const played = `${Math.round(dossier.timePlayedSec / 3600).toLocaleString("es")} h`;
+  const railjack = [dossier.intrinsics.piloting, dossier.intrinsics.gunnery, dossier.intrinsics.engineering, dossier.intrinsics.tactical, dossier.intrinsics.command];
+  const drifter = [dossier.intrinsics.riding, dossier.intrinsics.combat, dossier.intrinsics.opportunity, dossier.intrinsics.endurance];
+  const marks = [...new Set(dossier.marks.map(markLabel).filter(Boolean))];
+  return (
+    <section className="rounded-2xl border border-line bg-panel p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">Perfil oficial</p>
+          <p className="mt-1 text-2xl font-medium text-bone">
+            {dossier.displayName}
+            <span className="ml-2 text-sm text-mute">rango {dossier.rank}</span>
+          </p>
+          <p className="mt-1 text-sm text-mute">
+            {dossier.clan ? `${dossier.clan}${dossier.clanTier == null ? "" : ` · clan ${dossier.clanTier}`}` : "Sin clan"}
+            {Number.isFinite(since) ? ` · desde ${new Date(since).toLocaleDateString("es", { month: "short", year: "numeric" })}` : ""}
+          </p>
+        </div>
+        <p className="text-sm text-mute">
+          {played} · {dossier.missionsCompleted.toLocaleString("es")} hechas · {dossier.missionsFailed.toLocaleString("es")} fallidas
+        </p>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Mini label="Mapa estelar" value={String(dossier.nodes)} />
+        <Mini label="Camino de acero" value={String(dossier.steel)} />
+        <Mini label="Alineación" value={`${alignmentLabel(dossier.alignment.value)} · ${dossier.alignment.wisdom}`} />
+        <Mini label="Marcas" value={marks.length > 0 ? marks.join(", ") : "Ninguna"} />
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Mini label="Railjack" value={railjack.join(" / ")} />
+        <Mini label="Drifter" value={drifter.join(" / ")} />
+      </div>
+      {dossier.founder && <p className="mt-3 text-xs text-gold">Tiene la medalla de fundador.</p>}
+      {dossier.syndicates.length > 0 && (
+        <ul className="mt-4 grid grid-cols-1 gap-1 sm:grid-cols-2">
+          {dossier.syndicates.map((row) => (
+            <li key={row.tag} className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="text-bone">{syndicateName(row.tag)}</span>
+              <span className="shrink-0 text-mute">
+                {row.title < 0 ? "enemigo" : `rango ${row.title}`}
+                <span className="ml-2">{row.standing.toLocaleString("es")}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function Mini({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-line bg-ink/40 px-3 py-2">
+      <p className="text-[11px] font-medium tracking-[0.14em] text-gold uppercase">{label}</p>
+      <p className="mt-1 text-sm text-bone">{value}</p>
     </div>
   );
 }

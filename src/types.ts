@@ -83,6 +83,44 @@ export type Catalog = {
   items: CatalogItem[];
 };
 
+export type ProfileIntrinsic = {
+  piloting: number;
+  gunnery: number;
+  engineering: number;
+  tactical: number;
+  command: number;
+  riding: number;
+  combat: number;
+  opportunity: number;
+  endurance: number;
+};
+
+export type ProfileSyndicate = {
+  tag: string;
+  standing: number;
+  title: number;
+};
+
+export type ProfileDossier = {
+  accountId: string;
+  displayName: string;
+  rank: number;
+  clan: string;
+  clanTier: number | null;
+  created: string;
+  nodes: number;
+  steel: number;
+  intrinsics: ProfileIntrinsic;
+  syndicates: ProfileSyndicate[];
+  alignment: { value: number; wisdom: number };
+  marks: string[];
+  founder: boolean;
+  timePlayedSec: number;
+  missionsCompleted: number;
+  missionsFailed: number;
+  loadedAt: string;
+};
+
 export type Collection = {
   parts: string[];
   built: string[];
@@ -91,6 +129,7 @@ export type Collection = {
   crafted: string[];
   mastered: string[];
   leveled: string[];
+  dossier?: ProfileDossier;
 };
 
 export type Draft = {

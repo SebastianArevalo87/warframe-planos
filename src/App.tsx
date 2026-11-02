@@ -5,7 +5,8 @@ import { craftKey, emptyCollection, withAmount } from "./lib/collection.ts";
 import { loadProfile, masteryValue, saveProfile, type Profile, type Session } from "./lib/account.ts";
 import { loadOrCreateRemote, saveRemoteAccount } from "./lib/remote.ts";
 import { sessionFromUser, supabase, supabaseEnabled } from "./lib/supabase.ts";
-import { fetchDashboard, fetchItemDetail, fetchItemList, fetchSellStock, type DashboardStats, type ItemSummary, type SellRow } from "./lib/catalogRemote.ts";
+import { fetchDashboard, fetchItemDetail, fetchItemIndex, fetchItemList, fetchSellStock, type DashboardStats, type ItemSummary, type SellRow } from "./lib/catalogRemote.ts";
+import { applyOfficialProfile, fetchOfficialProfile } from "./lib/officialProfile.ts";
 import { fetchPrices, type PriceQuote } from "./lib/market.ts";
 import { Dashboard } from "./Dashboard.tsx";
 import { SellPage } from "./SellPage.tsx";
@@ -114,6 +115,8 @@ export function App() {
   const [detailLoading, setDetailLoading] = useState(() => Boolean(new URLSearchParams(window.location.search).get("item")));
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [profileId, setProfileId] = useState(collection.dossier?.accountId ?? "");
+  const [profileBusy, setProfileBusy] = useState(false);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -179,6 +182,11 @@ export function App() {
   useEffect(() => {
     collectionRef.current = collection;
   }, [collection]);
+
+  useEffect(() => {
+    const saved = collection.dossier?.accountId;
+    if (saved) setProfileId(saved);
+  }, [collection.dossier?.accountId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
@@ -371,6 +379,29 @@ export function App() {
     }
     saveCollection(next);
     saveProfile(stored);
+  }
+
+  async function loadOfficial() {
+    const accountId = profileId.trim().toLowerCase();
+    if (!/^[a-f0-9]{24}$/.test(accountId)) {
+      setNotice("Ese no es el id del perfil. En warframe.com, con la sesión iniciada, abre /api/user-data y copia user_id.");
+      return;
+    }
+    setProfileBusy(true);
+    setNotice("Leyendo el perfil oficial…");
+    try {
+      const [official, index] = await Promise.all([fetchOfficialProfile(accountId), fetchItemIndex()]);
+      const applied = applyOfficialProfile(collectionRef.current, new Set(index.map((item) => item.id)), official);
+      collectionRef.current = applied.collection;
+      const nextProfile = { ...profile, mastery: String(official.rank) };
+      setProfile(nextProfile);
+      writeAccount(applied.collection, nextProfile);
+      setNotice(applied.summary);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No pude leer el perfil oficial.");
+    } finally {
+      setProfileBusy(false);
+    }
   }
 
   function changeProfile(nextProfile: { warframeAccount: string; mastery: string }) {
@@ -625,6 +656,28 @@ export function App() {
                   <span className="mt-0.5 block text-xs text-mute">Excalibur Prime, Lato Prime y Skana Prime.</span>
                 </span>
               </label>
+              <label className="mt-3 block">
+                <span className="text-xs text-mute">Id del perfil</span>
+                <input
+                  value={profileId}
+                  onChange={(event) => setProfileId(event.target.value.trim())}
+                  placeholder="24 caracteres de user_id"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 font-mono text-xs text-bone outline-none placeholder:font-sans placeholder:text-mute/70 focus:border-gold"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void loadOfficial()}
+                disabled={profileBusy}
+                className="mt-3 w-full rounded-full border border-gold/50 bg-gold/10 px-3 py-2 text-sm text-gold hover:border-gold disabled:opacity-60"
+              >
+                {profileBusy ? "Leyendo el perfil…" : "Cargar perfil del juego"}
+              </button>
+              <p className="mt-2 text-xs text-mute">
+                El nombre no alcanza: en warframe.com, ya dentro de tu cuenta, abre /api/user-data y pega user_id. No borra los planos que marcaste.
+              </p>
               {accountHint && <p className="mt-2 text-xs text-clay">{accountHint}</p>}
             </div>
           )}

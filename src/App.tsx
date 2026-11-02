@@ -421,9 +421,11 @@ export function App() {
     const marking = !current.mastered.includes(id);
     const mastered = marking ? [...current.mastered, id] : current.mastered.filter((itemId) => itemId !== id);
     const leveled = marking ? current.leveled.filter((itemId) => itemId !== id) : current.leveled;
-    const updated = { ...current, mastered, leveled };
+    const built = marking && !current.built.includes(id) ? [...current.built, id] : current.built;
+    const updated = { ...current, mastered, leveled, built };
     collectionRef.current = updated;
     writeAccount(updated);
+    if (marking && openItem?.id === id) patchOpenRow({ built: true });
   }
 
   function toggleLeveled(id: string) {
@@ -666,7 +668,9 @@ export function App() {
           onOpen={showItem}
           mastered={collection.mastered}
           leveled={collection.leveled}
+          built={collection.built}
           onToggleMastered={toggleMastered}
+          onToggleBuilt={toggleBuilt}
           onToggleLeveled={toggleLeveled}
         />
       ) : page === "sell" ? (

@@ -155,7 +155,8 @@ export function MasteryPage({
                   <GearCard
                     name={names.item(row.id, row.name)}
                     image={row.image}
-                    label={owned ? "30" : partial ? "Leveado" : undefined}
+                    label={partial && !owned ? "Leveado" : undefined}
+                    mastered={owned}
                     tone={owned ? "built" : partial ? "few" : "none"}
                     dimmed={!owned && !partial}
                     pressed={owned}

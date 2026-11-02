@@ -7,6 +7,7 @@ import { useShowFounders } from "./lib/founders.ts";
 import { craftKey } from "./lib/collection.ts";
 import { KIND_LABEL, type ItemKind } from "./types.ts";
 import { MaterialList } from "./MaterialTotals.tsx";
+import { Laurel } from "./Laurel.tsx";
 
 type GroupId =
   | "warframe"
@@ -135,7 +136,9 @@ export function LoadPage({
   onOpen,
   mastered,
   leveled,
+  built,
   onToggleMastered,
+  onToggleBuilt,
   onToggleLeveled,
 }: {
   qty: Record<string, number>;
@@ -145,7 +148,9 @@ export function LoadPage({
   onOpen: (itemId: string) => void;
   mastered: string[];
   leveled: string[];
+  built: string[];
   onToggleMastered: (itemId: string) => void;
+  onToggleBuilt: (itemId: string) => void;
   onToggleLeveled: (itemId: string) => void;
 }) {
   const [rows, setRows] = useState<LoadRow[]>([]);
@@ -159,6 +164,8 @@ export function LoadPage({
   const foundersVisible = useShowFounders();
   const ordering = sortLocale(names.locale);
   const craftedKeys = useMemo(() => new Set(crafted), [crafted]);
+  const masteredIds = useMemo(() => new Set(mastered), [mastered]);
+  const builtIds = useMemo(() => new Set(built), [built]);
 
   useEffect(() => {
     let cancelled = false;
@@ -316,9 +323,13 @@ export function LoadPage({
                           showKind={group === "varios"}
                           qty={qty}
                           craftedKeys={craftedKeys}
+                          masteredIds={masteredIds}
+                          builtIds={builtIds}
                           onOpen={onOpen}
                           onToggle={onToggle}
                           onToggleCrafted={onToggleCrafted}
+                          onToggleMastered={onToggleMastered}
+                          onToggleBuilt={onToggleBuilt}
                         />
                       ))}
                     </div>
@@ -339,74 +350,116 @@ function BlueprintCard({
   showKind,
   qty,
   craftedKeys,
+  masteredIds,
+  builtIds,
   onOpen,
   onToggle,
   onToggleCrafted,
+  onToggleMastered,
+  onToggleBuilt,
 }: {
   item: ItemBlock;
   itemLabel: string;
   showKind: boolean;
   qty: Record<string, number>;
   craftedKeys: Set<string>;
+  masteredIds: Set<string>;
+  builtIds: Set<string>;
   onOpen: (itemId: string) => void;
   onToggle: (partId: string, next: number) => void;
   onToggleCrafted: (itemId: string, partId: string) => void;
+  onToggleMastered: (itemId: string) => void;
+  onToggleBuilt: (itemId: string) => void;
 }) {
   const names = useNames();
+  const isMastered = masteredIds.has(item.itemId);
+  const itemBuilt = builtIds.has(item.itemId) || isMastered;
   const marked = item.parts.filter((part) => (qty[part.partId] ?? 0) > 0 || craftedKeys.has(craftKey(item.itemId, part.partId)));
   const hasMarks = marked.length > 0;
   const [open, setOpen] = useState(false);
+
+  function pieceDone(part: LoadRow) {
+    const crafted = craftedKeys.has(craftKey(item.itemId, part.partId));
+    if (part.short === "Plano" || item.parts.length === 1) return itemBuilt || crafted;
+    return crafted;
+  }
+
+  function markPiece(part: LoadRow) {
+    if (part.short === "Plano" && item.parts.length > 1) onToggleBuilt(item.itemId);
+    else onToggleCrafted(item.itemId, part.partId);
+  }
+
   return (
     <article className={hasMarks ? "min-w-0 self-start rounded-2xl border border-gold/40 bg-panel p-3" : "min-w-0 self-start rounded-2xl border border-line bg-panel p-3"}>
-      <div className="flex w-full min-w-0 items-center gap-3">
+      <div className="flex w-full min-w-0 items-start gap-3">
         {item.image && (
           <button type="button" onClick={() => onOpen(item.itemId)} aria-label={`Abrir ${itemLabel}`} className="shrink-0">
             <Icon src={item.image} large />
           </button>
         )}
-        <button
-          type="button"
-          aria-expanded={open}
-          onClick={() => setOpen((current) => !current)}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-base font-medium text-bone">{itemLabel}</span>
-            {showKind && <span className="block text-xs text-mute">{KIND_LABEL[item.kind]}</span>}
-            {!open && (
-              <span className="mt-2 flex flex-wrap gap-1.5">
-                {item.parts.map((part) => {
-                  const amount = qty[part.partId] ?? 0;
-                  const builtPiece = craftedKeys.has(craftKey(item.itemId, part.partId));
-                  const owned = amount > 0 || builtPiece;
-                  return (
-                    <span
-                      key={part.partId}
-                      className={
-                        owned
-                          ? "inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-xs text-gold"
-                          : "inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs text-mute"
-                      }
-                    >
-                      {part.partImage && <img src={part.partImage} alt="" width={16} height={16} className="h-4 w-4 object-contain" />}
-                      {part.short}
-                      {amount > 0 && <span className="tabular-nums">{amount}</span>}
-                      {builtPiece && <span className="text-moss">hecha</span>}
-                    </span>
-                  );
-                })}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => setOpen((current) => !current)}
+              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-base font-medium text-bone">{itemLabel}</span>
+                {showKind && <span className="block text-xs text-mute">{KIND_LABEL[item.kind]}</span>}
               </span>
-            )}
-          </span>
-          <Chevron open={open} />
-        </button>
+              <Chevron open={open} />
+            </button>
+            <button
+              type="button"
+              aria-pressed={isMastered}
+              aria-label={isMastered ? `${itemLabel}. Quitar dominado` : `${itemLabel}. Marcar dominado`}
+              title={isMastered ? "Dominado" : "Marcar dominado"}
+              onClick={() => onToggleMastered(item.itemId)}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
+            >
+              <Laurel lit={isMastered} />
+            </button>
+          </div>
+          {!open && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {item.parts.map((part) => {
+                const amount = qty[part.partId] ?? 0;
+                const done = pieceDone(part);
+                return (
+                  <button
+                    key={part.partId}
+                    type="button"
+                    aria-pressed={done}
+                    aria-label={done ? `${part.short} de ${itemLabel}. Construido` : `${part.short} de ${itemLabel}. Marcar construido`}
+                    onClick={() => markPiece(part)}
+                    className={
+                      done
+                        ? "inline-flex items-center gap-1 rounded-full border border-moss/40 bg-moss/10 px-2 py-0.5 text-xs text-moss"
+                        : amount > 0
+                          ? "inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-xs text-gold"
+                          : "inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs text-mute hover:border-gold"
+                    }
+                  >
+                    {part.partImage && <img src={part.partImage} alt="" width={16} height={16} className="h-4 w-4 object-contain" />}
+                    {part.short}
+                    {amount > 0 && <span className="tabular-nums">{amount}</span>}
+                    {done && <span>hecha</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
       {open && <ul className="mt-3 flex flex-col gap-2">
         {item.parts.map((part) => {
           const amount = qty[part.partId] ?? 0;
           const partLabel = names.part(part.partId, part.title, item.itemId, item.itemName);
-          const builtPiece = craftedKeys.has(craftKey(item.itemId, part.partId));
-          const canBuild = part.materials.length > 0 && (part.short !== "Plano" || item.parts.length === 1);
+          const done = pieceDone(part);
+          const finalPiece = part.short === "Plano" && item.parts.length > 1;
+          const canBuild = part.materials.length > 0;
           return (
             <li key={part.partId} className={amount > 0 ? "rounded-xl border border-gold/40 bg-gold/5 px-2 py-2" : "rounded-xl border border-line/80 px-2 py-2"}>
               <div className="flex flex-wrap items-center gap-2">
@@ -416,21 +469,21 @@ function BlueprintCard({
                 {canBuild && (
                   <button
                     type="button"
-                    aria-pressed={builtPiece}
-                    onClick={() => onToggleCrafted(item.itemId, part.partId)}
+                    aria-pressed={done}
+                    onClick={() => markPiece(part)}
                     className={
-                      builtPiece
+                      done
                         ? "rounded-full border border-moss/40 px-2.5 py-1 text-xs text-moss"
                         : "rounded-full border border-line px-2.5 py-1 text-xs text-bone hover:border-gold"
                     }
                   >
-                    {builtPiece ? "Construida" : "Pieza"}
+                    {done ? (finalPiece ? "Construido" : "Construida") : finalPiece ? "Construir" : "Pieza"}
                   </button>
                 )}
               </div>
               {part.materials.length > 0 && (
                 <div className="mt-2">
-                  <MaterialList materials={part.materials} muted={builtPiece} />
+                  <MaterialList materials={part.materials} muted={done} />
                 </div>
               )}
               <span className="sr-only">{partLabel}</span>

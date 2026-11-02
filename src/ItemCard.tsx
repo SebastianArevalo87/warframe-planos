@@ -5,6 +5,7 @@ import { fetchPrice, fetchPrices, marketItemUrl, type PriceQuote } from "./lib/m
 import { sumMaterials } from "./lib/materials.ts";
 import { MaterialList, MaterialTotals } from "./MaterialTotals.tsx";
 import { useNames } from "./Locale.tsx";
+import { Laurel } from "./Laurel.tsx";
 
 type ItemCardProps = {
   item: CatalogItem;
@@ -244,6 +245,7 @@ export function GearCard({
   pressed,
   onClick,
   leveled,
+  mastered = false,
   onToggleLeveled,
 }: {
   name: string;
@@ -255,8 +257,10 @@ export function GearCard({
   pressed?: boolean;
   onClick: () => void;
   leveled?: boolean;
+  mastered?: boolean;
   onToggleLeveled?: () => void;
 }) {
+  const status = mastered ? "Dominado" : label;
   const body = (
     <>
       {image && (
@@ -268,7 +272,12 @@ export function GearCard({
           className={`absolute inset-0 h-full w-full object-contain p-2 ${dimmed ? "opacity-45" : ""}`}
         />
       )}
-      {label && (
+      {mastered && (
+        <span className="absolute top-1 left-1">
+          <Laurel lit className="h-7 w-7" />
+        </span>
+      )}
+      {label && !mastered && (
         <span className={`absolute top-1.5 left-1.5 max-w-[calc(100%-2.25rem)] truncate rounded-full px-1.5 py-0.5 text-[10px] font-medium ${TILE_BADGE[tone]}`}>
           {label}
         </span>
@@ -286,7 +295,7 @@ export function GearCard({
         type="button"
         onClick={onClick}
         aria-pressed={pressed}
-        aria-label={label ? `${name}. ${label}` : name}
+        aria-label={status ? `${name}. ${status}` : name}
         className={frame}
       >
         {body}
@@ -299,7 +308,7 @@ export function GearCard({
         type="button"
         onClick={onClick}
         aria-pressed={pressed}
-        aria-label={label ? `${name}. ${label}` : `${name}. Sin rango 30`}
+        aria-label={status ? `${name}. ${status}` : `${name}. Sin rango 30`}
         className="absolute inset-0 text-left"
       >
         {body}

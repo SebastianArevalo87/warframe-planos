@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchItemIndex } from "./lib/catalogRemote.ts";
 import { fetchItemSources, type ItemSources } from "./lib/partSources.ts";
+import { vendorOffer } from "./lib/vendorOffers.ts";
 import { supabase } from "./lib/supabase.ts";
 import { craftKey } from "./lib/collection.ts";
 import { MaterialList } from "./MaterialTotals.tsx";
@@ -11,6 +12,7 @@ type PlanPart = {
   id: string;
   short: string;
   title: string;
+  english: string;
   image: string | null;
   relics: PartRelic[];
   materials: CraftMaterial[];
@@ -60,7 +62,7 @@ export function FarmPlan({
     }
     let cancelled = false;
     void Promise.all([
-      supabase.from("catalog_parts").select("id, item_id, short, title, image, relics, materials, catalog_items(name, image)").in("item_id", goals),
+      supabase.from("catalog_parts").select("id, item_id, short, title, english, image, relics, materials, catalog_items(name, image)").in("item_id", goals),
       fetchItemIndex(),
     ])
       .then(([parts, index]) => {
@@ -165,6 +167,7 @@ export function FarmPlan({
                       relics={part.relics}
                       source={partSource(sources[item.id], part.id, part.short, finalPiece)}
                       wiki={sources[item.id]?.wiki ?? null}
+                      offer={vendorOffer(part.english)}
                       pending={!sourcesReady && part.relics.length === 0}
                     />
                     {part.materials.length > 0 && (
@@ -232,17 +235,49 @@ function SourceNote({
   relics,
   source,
   wiki,
+  offer,
   pending,
 }: {
   relics: PartRelic[];
   source: { lines: string[]; market: string | null } | undefined;
   wiki: string | null;
+  offer: string | null;
   pending: boolean;
 }) {
-  if (relics.length > 0) return <p className="mt-1 text-xs text-mute">{sourceLine(relics)}</p>;
-  if (pending && !source) return <p className="mt-1 text-xs text-mute">Buscando de dónde sale…</p>;
-  if (source && source.lines.length > 0) return <p className="mt-1 text-xs text-mute">{source.lines.join("  ·  ")}</p>;
-  if (source?.market) return <p className="mt-1 text-xs text-mute">{source.market}</p>;
+  const buy = offer ? <p className="mt-1 text-xs text-gold">{relics.length > 0 || source?.lines.length || source?.market ? `O cómpralo ${offer}.` : `Cómpralo ${offer}.`}</p> : null;
+  if (relics.length > 0) {
+    return (
+      <>
+        <p className="mt-1 text-xs text-mute">{sourceLine(relics)}</p>
+        {buy}
+      </>
+    );
+  }
+  if (pending && !source) {
+    return (
+      <>
+        <p className="mt-1 text-xs text-mute">Buscando de dónde sale…</p>
+        {buy}
+      </>
+    );
+  }
+  if (source && source.lines.length > 0) {
+    return (
+      <>
+        <p className="mt-1 text-xs text-mute">{source.lines.join("  ·  ")}</p>
+        {buy}
+      </>
+    );
+  }
+  if (source?.market) {
+    return (
+      <>
+        <p className="mt-1 text-xs text-mute">{source.market}</p>
+        {buy}
+      </>
+    );
+  }
+  if (buy) return buy;
   return (
     <p className="mt-1 text-xs text-mute">
       La tabla oficial no lo lista. Puede salir de una aventura, del dojo o de un sindicato.
@@ -302,6 +337,7 @@ function groupPlans(rows: unknown[], order: string[]): PlanItem[] {
       item_id?: unknown;
       short?: unknown;
       title?: unknown;
+      english?: unknown;
       image?: unknown;
       relics?: unknown;
       materials?: unknown;
@@ -319,6 +355,7 @@ function groupPlans(rows: unknown[], order: string[]): PlanItem[] {
       id: row.id,
       short: row.short,
       title: row.title,
+      english: typeof row.english === "string" ? row.english : row.title,
       image: typeof row.image === "string" ? row.image : null,
       relics: relicList(row.relics),
       materials: materialList(row.materials),

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchItemIndex } from "./lib/catalogRemote.ts";
+import { fetchCatchParts, fetchItemIndex, type CatchPartRow } from "./lib/catalogRemote.ts";
 import { fetchItemSources, type ItemSources } from "./lib/partSources.ts";
 import { fissureMatches, fetchFissures, relicEra, type FarmFissure } from "./lib/fissures.ts";
 import { fetchPlaceRewards, matchReward, placeKey, type CatalogDrop } from "./lib/missionDrops.ts";
@@ -43,16 +43,6 @@ type DropRoute = {
   kind: "mission" | "fissure";
   detail: string;
   chances: DropChance[];
-};
-
-type CatchPart = {
-  partId: string;
-  itemId: string;
-  itemName: string;
-  partTitle: string;
-  english: string;
-  image: string | null;
-  bonus: boolean;
 };
 
 const RARITY: Record<RelicRarity, string> = {
@@ -189,50 +179,31 @@ export function FarmPlan({
     [items, sources, fissures, sideDrops, collection.qty],
   );
 
-  const catchList = useMemo(() => {
-    const byId = new Map<string, CatchPart>();
+  const priorityIds = useMemo(() => {
+    const ids = new Set<string>();
     for (const item of items) {
-      for (const part of item.parts) {
-        byId.set(part.id, {
-          partId: part.id,
-          itemId: item.id,
-          itemName: item.name,
-          partTitle: part.title,
-          english: part.english,
-          image: part.image,
-          bonus: false,
-        });
-      }
+      for (const part of item.parts) ids.add(part.id);
     }
     for (const extras of Object.values(sideDrops)) {
-      for (const part of extras) {
-        if (byId.has(part.partId)) continue;
-        byId.set(part.partId, {
-          partId: part.partId,
-          itemId: part.itemId,
-          itemName: part.itemName,
-          partTitle: part.partTitle,
-          english: part.english,
-          image: part.image,
-          bonus: true,
-        });
-      }
+      for (const part of extras) ids.add(part.partId);
     }
-    return [...byId.values()];
+    return ids;
   }, [items, sideDrops]);
 
   if (goals.length === 0) {
     return <p className="text-sm text-mute">En Marcar, pulsa Farmear en lo que te falte. Aquí queda el camino de cada plano.</p>;
   }
   if (error) return <p className="text-sm text-clay">{error}</p>;
-  if (items.length === 0) return <p className="text-sm text-mute">Armando el plan…</p>;
 
   const built = new Set(collection.built);
   const mastered = new Set(collection.mastered);
 
   return (
     <div className="flex flex-col gap-4">
-      <DropCatcher parts={catchList} qty={collection.qty} onCatch={onPartQty} />
+      <DropCatcher priorityIds={priorityIds} qty={collection.qty} onCatch={onPartQty} />
+      {items.length === 0 && <p className="text-sm text-mute">Armando el plan…</p>}
+      {items.length > 0 && (
+        <>
       {routes.length > 0 && (
         <section className="rounded-2xl border border-gold/30 bg-panel p-4">
           <h3 className="text-sm font-medium text-bone">Dónde cae ahora</h3>
@@ -347,25 +318,47 @@ export function FarmPlan({
           </article>
         );
       })}
+        </>
+      )}
     </div>
   );
 }
 
 function DropCatcher({
-  parts,
+  priorityIds,
   qty,
   onCatch,
 }: {
-  parts: CatchPart[];
+  priorityIds: Set<string>;
   qty: Record<string, number>;
   onCatch: (partId: string, next: number) => void;
 }) {
   const names = useNames();
+  const [parts, setParts] = useState<CatchPartRow[]>([]);
+  const [ready, setReady] = useState(false);
   const [query, setQuery] = useState("");
   const [flash, setFlash] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCatchParts()
+      .then((next) => {
+        if (!cancelled) setParts(next);
+      })
+      .catch(() => {
+        if (!cancelled) setParts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const matches = useMemo(() => {
     const words = fold(query).split(/\s+/).filter(Boolean);
-    if (words.length === 0) return [];
+    if (words.length === 0 || !names.ready) return [];
     return parts
       .map((part) => {
         const label = names.part(part.partId, part.partTitle, part.itemId, part.itemName);
@@ -374,8 +367,14 @@ function DropCatcher({
         return { part, label, itemLabel, haystack };
       })
       .filter((row) => words.every((word) => row.haystack.includes(word)))
+      .sort((a, b) => {
+        const ap = priorityIds.has(a.part.partId) ? 0 : 1;
+        const bp = priorityIds.has(b.part.partId) ? 0 : 1;
+        if (ap !== bp) return ap - bp;
+        return a.label.localeCompare(b.label, "es");
+      })
       .slice(0, 8);
-  }, [names, parts, query]);
+  }, [names, parts, priorityIds, query]);
 
   function catchPart(partId: string, label: string) {
     const amount = qty[partId] ?? 0;
@@ -388,9 +387,9 @@ function DropCatcher({
   return (
     <section className="rounded-2xl border border-gold/30 bg-panel p-4">
       <h3 className="text-sm font-medium text-bone">¿Qué te cayó?</h3>
-      <p className="mt-1 text-xs text-mute">Escribí el plano y tocá Me cayó. Podés sumar el mismo varias veces. No hace falta marcar la reliquia.</p>
+      <p className="mt-1 text-xs text-mute">Cualquier plano del catálogo. Tocá Me cayó para sumarlo; podés repetir el mismo. No hace falta marcar la reliquia.</p>
       <label className="mt-3 block">
-        <span className="sr-only">Buscar un plano del farmeo</span>
+        <span className="sr-only">Buscar un plano del catálogo</span>
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -405,11 +404,13 @@ function DropCatcher({
         />
       </label>
       {flash && <p className="mt-2 text-xs text-gold">{flash}</p>}
-      {query.trim() && matches.length === 0 && <p className="mt-2 text-xs text-mute">Nada de tu farmeo coincide.</p>}
+      {query.trim() && !ready && <p className="mt-2 text-xs text-mute">Cargando catálogo…</p>}
+      {query.trim() && ready && matches.length === 0 && <p className="mt-2 text-xs text-mute">Nada coincide en el catálogo.</p>}
       {matches.length > 0 && (
         <ul className="mt-2 flex flex-col gap-1.5">
           {matches.map(({ part, label, itemLabel }) => {
             const amount = qty[part.partId] ?? 0;
+            const inFarm = priorityIds.has(part.partId);
             return (
               <li key={part.partId}>
                 <button
@@ -422,7 +423,7 @@ function DropCatcher({
                     <span className="block truncate text-sm text-bone">{label}</span>
                     <span className="block truncate text-xs text-mute">
                       {itemLabel}
-                      {part.bonus ? " · también cae en tu ruta" : ""}
+                      {inFarm ? " · en tu farmeo" : ""}
                       {amount > 0 ? ` · ya × ${amount}` : ""}
                     </span>
                   </span>

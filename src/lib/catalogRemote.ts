@@ -277,6 +277,71 @@ export async function fetchLoadIndex(): Promise<LoadRow[]> {
   return rows;
 }
 
+export type CatchPartRow = {
+  partId: string;
+  itemId: string;
+  itemName: string;
+  partTitle: string;
+  english: string;
+  image: string | null;
+};
+
+let catchPartsCache: Promise<CatchPartRow[]> | null = null;
+
+export function fetchCatchParts(): Promise<CatchPartRow[]> {
+  if (!catchPartsCache) catchPartsCache = loadCatchParts().catch((error) => {
+    catchPartsCache = null;
+    throw error;
+  });
+  return catchPartsCache;
+}
+
+async function loadCatchParts(): Promise<CatchPartRow[]> {
+  if (!supabase) throw new Error("supabase");
+  const rows: CatchPartRow[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("catalog_parts")
+      .select("id, title, english, image, item_id, catalog_items(name, image, kind)")
+      .order("item_id")
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as unknown[];
+    for (const entry of batch) {
+      const row = asCatchPart(entry);
+      if (row && !HIDDEN_IDS.has(row.itemId) && (showFounders() || !isFounderItem(row.itemId))) rows.push(row);
+    }
+    if (batch.length < pageSize) break;
+  }
+  return rows;
+}
+
+function asCatchPart(value: unknown): CatchPartRow | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as {
+    id?: unknown;
+    title?: unknown;
+    english?: unknown;
+    image?: unknown;
+    item_id?: unknown;
+    catalog_items?: unknown;
+  };
+  const parent = Array.isArray(row.catalog_items) ? row.catalog_items[0] : row.catalog_items;
+  if (!parent || typeof parent !== "object") return null;
+  const item = parent as { name?: unknown; image?: unknown; kind?: unknown };
+  if (typeof row.id !== "string" || typeof row.title !== "string" || typeof row.item_id !== "string") return null;
+  if (typeof item.name !== "string" || !item.name || !isItemKind(item.kind)) return null;
+  return {
+    partId: row.id,
+    itemId: row.item_id,
+    itemName: item.name,
+    partTitle: row.title,
+    english: typeof row.english === "string" ? row.english : row.title,
+    image: typeof row.image === "string" && row.image ? row.image : null,
+  };
+}
+
 export type MasteryRow = {
   id: string;
   name: string;

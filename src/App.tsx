@@ -384,7 +384,7 @@ export function App() {
   async function loadOfficial() {
     const accountId = profileId.trim().toLowerCase();
     if (!/^[a-f0-9]{24}$/.test(accountId)) {
-      setNotice("Ese no es el id. En warframe.com, con la sesión iniciada, abre la consola y copia el user_id de la cookie user-info.");
+      setNotice("Ese no es el id. En warframe.com, con F12, abre Aplicación, Cookies y copia el valor de gid.");
       return;
     }
     setProfileBusy(true);
@@ -619,7 +619,7 @@ export function App() {
               id="cuenta-menu"
               role="dialog"
               aria-label="Cuenta"
-              className="absolute right-0 z-30 mt-2 w-72 rounded-2xl border border-line bg-panel px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
+              className="absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-panel px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
             >
               <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
@@ -661,7 +661,7 @@ export function App() {
                 <input
                   value={profileId}
                   onChange={(event) => setProfileId(event.target.value.trim())}
-                  placeholder="24 caracteres de user_id"
+                  placeholder="el valor de gid"
                   autoComplete="off"
                   spellCheck={false}
                   className="mt-1 w-full rounded-xl border border-line bg-ink px-3 py-2 font-mono text-xs text-bone outline-none placeholder:font-sans placeholder:text-mute/70 focus:border-gold"
@@ -675,9 +675,12 @@ export function App() {
               >
                 {profileBusy ? "Leyendo el perfil…" : "Cargar perfil del juego"}
               </button>
-              <p className="mt-2 text-xs text-mute">
-                En warframe.com, ya dentro, abre la consola con F12 y pega copy(JSON.parse(decodeURIComponent(document.cookie.match(/user-info=([^;]+)/)[1])).user_id). Eso copia el id. /api/user-data ya no existe.
-              </p>
+              <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-mute">
+                <li>Entra en warframe.com.</li>
+                <li>Pulsa F12 y abre Aplicación.</li>
+                <li>En Cookies, elige www.warframe.com.</li>
+                <li>Copia el valor de gid.</li>
+              </ol>
               {accountHint && <p className="mt-2 text-xs text-clay">{accountHint}</p>}
             </div>
           )}

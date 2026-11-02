@@ -307,7 +307,7 @@ export function LoadPage({
                 {sections.map((section) => (
                   <section key={section.letter}>
                     <h2 className="mt-4 text-xs font-medium tracking-[0.16em] text-gold uppercase">{section.letter}</h2>
-                    <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    <div className="mt-3 grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
                       {section.items.map((item) => (
                         <BlueprintCard
                           key={item.itemId}
@@ -360,7 +360,7 @@ function BlueprintCard({
     setOpen(hasMarks);
   }, [hasMarks]);
   return (
-    <article className={hasMarks ? "min-w-0 rounded-2xl border border-gold/40 bg-panel p-3" : "min-w-0 rounded-2xl border border-line bg-panel p-3"}>
+    <article className={hasMarks ? "min-w-0 self-start rounded-2xl border border-gold/40 bg-panel p-3" : "min-w-0 self-start rounded-2xl border border-line bg-panel p-3"}>
       <div className="flex w-full min-w-0 items-center gap-3">
         {item.image && (
           <button type="button" onClick={() => onOpen(item.itemId)} aria-label={`Abrir ${itemLabel}`} className="shrink-0">

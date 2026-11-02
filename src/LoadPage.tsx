@@ -6,7 +6,7 @@ import { sortLocale } from "./lib/locale.ts";
 import { useShowFounders } from "./lib/founders.ts";
 import { craftKey } from "./lib/collection.ts";
 import { KIND_LABEL, type ItemKind } from "./types.ts";
-import type { CraftMaterial } from "./types.ts";
+import { MaterialList } from "./MaterialTotals.tsx";
 
 type GroupId =
   | "warframe"
@@ -127,10 +127,6 @@ function letterOf(name: string) {
   return /[A-Z]/.test(folded) ? folded : letter;
 }
 
-function materialLine(materials: CraftMaterial[]) {
-  return materials.map((material) => `${material.name} ${material.count.toLocaleString("es-CL")}`).join(" · ");
-}
-
 export function LoadPage({
   qty,
   crafted,
@@ -232,8 +228,6 @@ export function LoadPage({
     if (!last || last.letter !== letter) sections.push({ letter, items: [item] });
     else last.items.push(item);
   }
-  const showMaterials = group !== "warframe";
-
   return (
     <div>
       <div className="mb-3 flex items-baseline gap-4">
@@ -313,55 +307,20 @@ export function LoadPage({
                 {sections.map((section) => (
                   <section key={section.letter}>
                     <h2 className="mt-4 text-xs font-medium tracking-[0.16em] text-gold uppercase">{section.letter}</h2>
-                    <div className="grid grid-cols-1 gap-x-8 lg:grid-cols-2">
-                      {section.items.map((item) => {
-                        const itemLabel = names.item(item.itemId, item.itemName);
-                        return (
-                          <article key={item.itemId} className="min-w-0 border-t border-line/40 py-2">
-                            <button type="button" onClick={() => onOpen(item.itemId)} className="flex min-w-0 items-center gap-2 py-1 text-left">
-                              {item.image && <img src={item.image} alt="" width={32} height={32} className="h-8 w-8 shrink-0 object-contain" />}
-                              <span className="min-w-0">
-                                <span className="block truncate text-sm text-bone">{itemLabel}</span>
-                                {group === "varios" && <span className="block text-xs text-mute">{KIND_LABEL[item.kind]}</span>}
-                              </span>
-                            </button>
-                            <ul>
-                              {item.parts.map((part) => {
-                                const amount = qty[part.partId] ?? 0;
-                                const partLabel = names.part(part.partId, part.title, item.itemId, item.itemName);
-                                const builtPiece = craftedKeys.has(craftKey(item.itemId, part.partId));
-                                const canBuild = part.materials.length > 0 && (part.short !== "Plano" || item.parts.length === 1);
-                                return (
-                                  <li key={part.partId} className="py-1 pl-10">
-                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                      <span className="min-w-28 flex-1 truncate text-sm text-bone">{part.short}</span>
-                                      <Count label={`${part.short} de ${itemLabel}`} value={amount} onChange={(next) => onToggle(part.partId, next)} />
-                                      {canBuild && (
-                                        <button
-                                          type="button"
-                                          aria-pressed={builtPiece}
-                                          onClick={() => onToggleCrafted(item.itemId, part.partId)}
-                                          className={
-                                            builtPiece
-                                              ? "rounded-full border border-moss/40 px-2.5 py-1 text-xs text-moss"
-                                              : "rounded-full border border-line px-2.5 py-1 text-xs text-bone hover:border-gold"
-                                          }
-                                        >
-                                          {builtPiece ? "Construida" : "Pieza"}
-                                        </button>
-                                      )}
-                                    </div>
-                                    {showMaterials && part.materials.length > 0 && (
-                                      <p className={`mt-0.5 text-xs text-mute ${builtPiece ? "opacity-60" : ""}`}>{materialLine(part.materials)}</p>
-                                    )}
-                                    <span className="sr-only">{partLabel}</span>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          </article>
-                        );
-                      })}
+                    <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                      {section.items.map((item) => (
+                        <BlueprintCard
+                          key={item.itemId}
+                          item={item}
+                          itemLabel={names.item(item.itemId, item.itemName)}
+                          showKind={group === "varios"}
+                          qty={qty}
+                          craftedKeys={craftedKeys}
+                          onOpen={onOpen}
+                          onToggle={onToggle}
+                          onToggleCrafted={onToggleCrafted}
+                        />
+                      ))}
                     </div>
                   </section>
                 ))}
@@ -371,6 +330,93 @@ export function LoadPage({
         </>
       )}
     </div>
+  );
+}
+
+function BlueprintCard({
+  item,
+  itemLabel,
+  showKind,
+  qty,
+  craftedKeys,
+  onOpen,
+  onToggle,
+  onToggleCrafted,
+}: {
+  item: ItemBlock;
+  itemLabel: string;
+  showKind: boolean;
+  qty: Record<string, number>;
+  craftedKeys: Set<string>;
+  onOpen: (itemId: string) => void;
+  onToggle: (partId: string, next: number) => void;
+  onToggleCrafted: (itemId: string, partId: string) => void;
+}) {
+  const names = useNames();
+  return (
+    <article className="min-w-0 rounded-2xl border border-line bg-panel p-3">
+      <button type="button" onClick={() => onOpen(item.itemId)} className="flex min-w-0 items-center gap-3 text-left">
+        {item.image && <Icon src={item.image} large />}
+        <span className="min-w-0">
+          <span className="block truncate text-base font-medium text-bone">{itemLabel}</span>
+          {showKind && <span className="block text-xs text-mute">{KIND_LABEL[item.kind]}</span>}
+        </span>
+      </button>
+      <ul className="mt-3 flex flex-col gap-2">
+        {item.parts.map((part) => {
+          const amount = qty[part.partId] ?? 0;
+          const partLabel = names.part(part.partId, part.title, item.itemId, item.itemName);
+          const builtPiece = craftedKeys.has(craftKey(item.itemId, part.partId));
+          const canBuild = part.materials.length > 0 && (part.short !== "Plano" || item.parts.length === 1);
+          return (
+            <li key={part.partId} className={amount > 0 ? "rounded-xl border border-gold/40 bg-gold/5 px-2 py-2" : "rounded-xl border border-line/80 px-2 py-2"}>
+              <div className="flex flex-wrap items-center gap-2">
+                {part.partImage && <Icon src={part.partImage} />}
+                <span className="min-w-0 flex-1 truncate text-sm text-bone">{part.short}</span>
+                <Count label={`${part.short} de ${itemLabel}`} value={amount} onChange={(next) => onToggle(part.partId, next)} />
+                {canBuild && (
+                  <button
+                    type="button"
+                    aria-pressed={builtPiece}
+                    onClick={() => onToggleCrafted(item.itemId, part.partId)}
+                    className={
+                      builtPiece
+                        ? "rounded-full border border-moss/40 px-2.5 py-1 text-xs text-moss"
+                        : "rounded-full border border-line px-2.5 py-1 text-xs text-bone hover:border-gold"
+                    }
+                  >
+                    {builtPiece ? "Construida" : "Pieza"}
+                  </button>
+                )}
+              </div>
+              {part.materials.length > 0 && (
+                <div className="mt-2">
+                  <MaterialList materials={part.materials} muted={builtPiece} />
+                </div>
+              )}
+              <span className="sr-only">{partLabel}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </article>
+  );
+}
+
+function Icon({ src, large = false }: { src: string; large?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <img
+      src={src}
+      alt=""
+      width={large ? 56 : 40}
+      height={large ? 56 : 40}
+      loading="lazy"
+      decoding="async"
+      className={large ? "h-14 w-14 shrink-0 rounded-xl bg-ink object-contain p-1" : "h-10 w-10 shrink-0 rounded-lg bg-ink object-contain p-0.5"}
+      onError={() => setFailed(true)}
+    />
   );
 }
 

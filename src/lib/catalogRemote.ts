@@ -249,6 +249,7 @@ export type LoadRow = {
   partId: string;
   short: string;
   title: string;
+  partImage: string | null;
   materials: CraftMaterial[];
 };
 
@@ -259,7 +260,7 @@ export async function fetchLoadIndex(): Promise<LoadRow[]> {
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from("catalog_parts")
-      .select("id, short, title, materials, item_id, catalog_items(name, image, kind)")
+      .select("id, short, title, image, materials, item_id, catalog_items(name, image, kind)")
       .order("item_id")
       .range(from, from + pageSize - 1);
     if (error) throw error;
@@ -359,6 +360,7 @@ function asLoadRow(value: unknown): LoadRow | null {
     id?: unknown;
     short?: unknown;
     title?: unknown;
+    image?: unknown;
     materials?: unknown;
     item_id?: unknown;
     catalog_items?: unknown;
@@ -378,6 +380,7 @@ function asLoadRow(value: unknown): LoadRow | null {
     partId: row.id,
     short: row.short,
     title: row.title,
+    partImage: typeof row.image === "string" && row.image ? row.image : null,
     materials: asMaterials(row.materials),
   };
 }

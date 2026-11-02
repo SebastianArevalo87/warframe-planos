@@ -353,16 +353,48 @@ function BlueprintCard({
   onToggleCrafted: (itemId: string, partId: string) => void;
 }) {
   const names = useNames();
+  const marked = item.parts.filter((part) => (qty[part.partId] ?? 0) > 0 || craftedKeys.has(craftKey(item.itemId, part.partId)));
+  const hasMarks = marked.length > 0;
+  const [open, setOpen] = useState(hasMarks);
+  useEffect(() => {
+    setOpen(hasMarks);
+  }, [hasMarks]);
   return (
-    <article className="min-w-0 rounded-2xl border border-line bg-panel p-3">
-      <button type="button" onClick={() => onOpen(item.itemId)} className="flex min-w-0 items-center gap-3 text-left">
-        {item.image && <Icon src={item.image} large />}
-        <span className="min-w-0">
-          <span className="block truncate text-base font-medium text-bone">{itemLabel}</span>
-          {showKind && <span className="block text-xs text-mute">{KIND_LABEL[item.kind]}</span>}
-        </span>
-      </button>
-      <ul className="mt-3 flex flex-col gap-2">
+    <article className={hasMarks ? "min-w-0 rounded-2xl border border-gold/40 bg-panel p-3" : "min-w-0 rounded-2xl border border-line bg-panel p-3"}>
+      <div className="flex w-full min-w-0 items-center gap-3">
+        {item.image && (
+          <button type="button" onClick={() => onOpen(item.itemId)} aria-label={`Abrir ${itemLabel}`} className="shrink-0">
+            <Icon src={item.image} large />
+          </button>
+        )}
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-base font-medium text-bone">{itemLabel}</span>
+            {showKind && <span className="block text-xs text-mute">{KIND_LABEL[item.kind]}</span>}
+            {!open && hasMarks && (
+              <span className="mt-1 flex flex-wrap gap-x-2 gap-y-1">
+                {marked.map((part) => {
+                  const amount = qty[part.partId] ?? 0;
+                  return (
+                    <span key={part.partId} className="inline-flex items-center gap-1 text-xs text-gold">
+                      {part.partImage && <img src={part.partImage} alt="" width={16} height={16} className="h-4 w-4 object-contain" />}
+                      {part.short}
+                      {amount > 1 ? ` ${amount}` : ""}
+                    </span>
+                  );
+                })}
+              </span>
+            )}
+          </span>
+          <Chevron open={open} />
+        </button>
+      </div>
+      {open && <ul className="mt-3 flex flex-col gap-2">
         {item.parts.map((part) => {
           const amount = qty[part.partId] ?? 0;
           const partLabel = names.part(part.partId, part.title, item.itemId, item.itemName);
@@ -398,8 +430,16 @@ function BlueprintCard({
             </li>
           );
         })}
-      </ul>
+      </ul>}
     </article>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 16 16" className={`h-4 w-4 shrink-0 text-mute transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true">
+      <path d="M4 6.5 8 10.5 12 6.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

@@ -11,6 +11,14 @@ const extraIds = [
   "/Lotus/Types/Game/CrewShip/Plexus/Plexus",
 ];
 const ids = new Set(extraIds);
+const misc = await fetch(`${base}/Misc.json`).then((response) => response.json());
+for (const item of misc) {
+  if (item.type !== "Amp" || /^Mote\b/i.test(item.name ?? "") || !item.uniqueName) continue;
+  ids.add(item.uniqueName);
+  for (const component of item.components ?? []) {
+    if (component.uniqueName) ids.add(component.uniqueName);
+  }
+}
 for (const file of files) {
   const items = await fetch(`${base}/${file}.json`).then((response) => response.json());
   for (const item of items) {

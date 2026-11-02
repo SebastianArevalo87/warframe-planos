@@ -4,9 +4,22 @@ import { useNames } from "./Locale.tsx";
 import { MasteryPage, masteryGroup } from "./MasteryPage.tsx";
 import { sortLocale } from "./lib/locale.ts";
 import { useShowFounders } from "./lib/founders.ts";
-import { KIND_LABEL } from "./types.ts";
+import { craftKey } from "./lib/collection.ts";
+import { KIND_LABEL, type ItemKind } from "./types.ts";
+import type { CraftMaterial } from "./types.ts";
 
-type GroupId = "warframe" | "primary" | "secondary" | "melee" | "archwing" | "archgun" | "archmelee" | "companion" | "robotic" | "amp" | "varios";
+type GroupId =
+  | "warframe"
+  | "primary"
+  | "secondary"
+  | "melee"
+  | "archwing"
+  | "archgun"
+  | "archmelee"
+  | "robotic"
+  | "companion"
+  | "modular"
+  | "varios";
 
 const GROUPS: Array<{ id: GroupId; label: string }> = [
   { id: "warframe", label: "Warframe" },
@@ -16,9 +29,9 @@ const GROUPS: Array<{ id: GroupId; label: string }> = [
   { id: "archwing", label: "Archwing" },
   { id: "archgun", label: "Archcañón" },
   { id: "archmelee", label: "Archmelee" },
-  { id: "companion", label: "Compañero" },
   { id: "robotic", label: "Robótico" },
-  { id: "amp", label: "Amps" },
+  { id: "companion", label: "Compañero" },
+  { id: "modular", label: "Modular" },
   { id: "varios", label: "Varios" },
 ];
 
@@ -62,6 +75,14 @@ const TYPE_ORDER = [
   "Mandacordio",
 ];
 
+type ItemBlock = {
+  itemId: string;
+  itemName: string;
+  image: string | null;
+  kind: ItemKind;
+  parts: LoadRow[];
+};
+
 function fold(value: string) {
   return value
     .toLowerCase()
@@ -69,10 +90,23 @@ function fold(value: string) {
     .replace(/\p{M}/gu, "");
 }
 
-function inGroup(row: LoadRow, group: GroupId) {
-  if (group === "varios") return row.short !== "Plano";
-  if (group === "archwing") return row.kind === "archwing" || row.kind === "necramech";
-  return row.kind === group;
+function groupOf(row: LoadRow): GroupId {
+  if (row.kind === "amp" || /ZanukaPets|MoaPetParts/i.test(row.itemId)) return "modular";
+  if (/SentinelPowersuits/i.test(row.itemId)) return "companion";
+  if (row.kind === "robotic") return "robotic";
+  if (row.kind === "archwing" || row.kind === "necramech") return "archwing";
+  if (row.kind === "companion") return "companion";
+  if (
+    row.kind === "warframe" ||
+    row.kind === "primary" ||
+    row.kind === "secondary" ||
+    row.kind === "melee" ||
+    row.kind === "archgun" ||
+    row.kind === "archmelee"
+  ) {
+    return row.kind;
+  }
+  return "varios";
 }
 
 function compareTypes(a: string, b: string) {
@@ -93,9 +127,15 @@ function letterOf(name: string) {
   return /[A-Z]/.test(folded) ? folded : letter;
 }
 
+function materialLine(materials: CraftMaterial[]) {
+  return materials.map((material) => `${material.name} ${material.count.toLocaleString("es-CL")}`).join(" · ");
+}
+
 export function LoadPage({
   qty,
+  crafted,
   onToggle,
+  onToggleCrafted,
   onOpen,
   mastered,
   leveled,
@@ -103,7 +143,9 @@ export function LoadPage({
   onToggleLeveled,
 }: {
   qty: Record<string, number>;
+  crafted: string[];
   onToggle: (partId: string, next: number) => void;
+  onToggleCrafted: (itemId: string, partId: string) => void;
   onOpen: (itemId: string) => void;
   mastered: string[];
   leveled: string[];
@@ -114,13 +156,13 @@ export function LoadPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [group, setGroup] = useState<GroupId>("warframe");
-  const [type, setType] = useState("Todos");
   const [query, setQuery] = useState("");
   const opened = masteryGroup(window.location.hash);
   const [mode, setMode] = useState<"parts" | "mastered">(opened ? "mastered" : "parts");
   const names = useNames();
   const foundersVisible = useShowFounders();
   const ordering = sortLocale(names.locale);
+  const craftedKeys = useMemo(() => new Set(crafted), [crafted]);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,59 +182,57 @@ export function LoadPage({
     };
   }, [foundersVisible]);
 
-  const grouped = useMemo(() => rows.filter((row) => inGroup(row, group)), [group, rows]);
-
-  const types = useMemo(() => {
-    const counts = new Map<string, { total: number; owned: number }>();
-    for (const row of grouped) {
-      const current = counts.get(row.short) ?? { total: 0, owned: 0 };
-      current.total += 1;
-      if ((qty[row.partId] ?? 0) > 0) current.owned += 1;
-      counts.set(row.short, current);
-    }
-    return [...counts.entries()]
-      .map(([short, count]) => ({ short, ...count }))
-      .sort((a, b) => compareTypes(a.short, b.short));
-  }, [grouped, qty]);
-
-  const activeType = type !== "Todos" && types.some((entry) => entry.short === type) ? type : "Todos";
-
   const groups = useMemo(
     () =>
       GROUPS.map((entry) => {
-        const matching = rows.filter((row) => inGroup(row, entry.id));
-        const owned = matching.filter((row) => (qty[row.partId] ?? 0) > 0).length;
-        return { ...entry, owned, total: matching.length };
+        const ids = new Set<string>();
+        const owned = new Set<string>();
+        for (const row of rows) {
+          if (groupOf(row) !== entry.id) continue;
+          ids.add(row.itemId);
+          if ((qty[row.partId] ?? 0) > 0) owned.add(row.itemId);
+        }
+        return { ...entry, owned: owned.size, total: ids.size };
       }),
     [qty, rows],
   );
 
-  const words = fold(query.trim()).split(/\s+/).filter(Boolean);
-  const visible = grouped
-    .filter((row) => {
-      if (activeType !== "Todos" && row.short !== activeType) return false;
-      const haystack = `${fold(row.itemName)} ${fold(names.item(row.itemId, row.itemName))} ${fold(row.title)} ${fold(names.part(row.partId, row.title, row.itemId, row.itemName))}`;
-      return words.every((word) => haystack.includes(word));
-    })
-    .sort((a, b) => {
-      const byType = compareTypes(a.short, b.short);
-      if (byType !== 0) return byType;
-      return names.item(a.itemId, a.itemName).localeCompare(names.item(b.itemId, b.itemName), ordering) || a.title.localeCompare(b.title, ordering);
-    });
-  const ownedVisible = visible.filter((row) => (qty[row.partId] ?? 0) > 0).length;
-  const progress = visible.length === 0 ? 0 : Math.round((ownedVisible / visible.length) * 100);
-  const blocks: Array<{ type: string; letters: Array<{ letter: string; rows: LoadRow[] }> }> = [];
-  for (const row of visible) {
-    let block = blocks[blocks.length - 1];
-    if (!block || block.type !== row.short) {
-      block = { type: row.short, letters: [] };
-      blocks.push(block);
+  const items = useMemo(() => {
+    const terms = fold(query.trim()).split(/\s+/).filter(Boolean);
+    const matched = new Set<string>();
+    for (const row of rows) {
+      if (groupOf(row) !== group) continue;
+      if (terms.length === 0) {
+        matched.add(row.itemId);
+        continue;
+      }
+      const itemLabel = names.item(row.itemId, row.itemName);
+      const partLabel = names.part(row.partId, row.title, row.itemId, row.itemName);
+      const haystack = `${fold(row.itemName)} ${fold(itemLabel)} ${fold(row.title)} ${fold(partLabel)} ${fold(row.short)}`;
+      if (terms.every((word) => haystack.includes(word))) matched.add(row.itemId);
     }
-    const letter = letterOf(names.item(row.itemId, row.itemName));
-    const last = block.letters[block.letters.length - 1];
-    if (!last || last.letter !== letter) block.letters.push({ letter, rows: [row] });
-    else last.rows.push(row);
+    const byId = new Map<string, ItemBlock>();
+    for (const row of rows) {
+      if (groupOf(row) !== group || !matched.has(row.itemId)) continue;
+      const current = byId.get(row.itemId);
+      if (current) current.parts.push(row);
+      else byId.set(row.itemId, { itemId: row.itemId, itemName: row.itemName, image: row.image, kind: row.kind, parts: [row] });
+    }
+    for (const block of byId.values()) block.parts.sort((a, b) => compareTypes(a.short, b.short) || a.title.localeCompare(b.title, ordering));
+    return [...byId.values()].sort((a, b) => names.item(a.itemId, a.itemName).localeCompare(names.item(b.itemId, b.itemName), ordering));
+  }, [group, names, ordering, query, rows]);
+
+  const partTotal = items.reduce((sum, item) => sum + item.parts.length, 0);
+  const partOwned = items.reduce((sum, item) => sum + item.parts.filter((part) => (qty[part.partId] ?? 0) > 0).length, 0);
+  const progress = partTotal === 0 ? 0 : Math.round((partOwned / partTotal) * 100);
+  const sections: Array<{ letter: string; items: ItemBlock[] }> = [];
+  for (const item of items) {
+    const letter = letterOf(names.item(item.itemId, item.itemName));
+    const last = sections[sections.length - 1];
+    if (!last || last.letter !== letter) sections.push({ letter, items: [item] });
+    else last.items.push(item);
   }
+  const showMaterials = group !== "warframe";
 
   return (
     <div>
@@ -230,111 +270,104 @@ export function LoadPage({
         />
       ) : (
         <>
-      {error && <p className="text-clay">{error}</p>}
-      {loading && <p className="text-mute">Abriendo las piezas…</p>}
-      {!loading && !error && (
-        <>
-          <div className="z-10 -mx-4 bg-ink/95 px-4 py-2 backdrop-blur-md lg:sticky lg:top-0 lg:-mx-8 lg:px-8">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,16rem)_minmax(0,18rem)_minmax(0,1fr)_auto] lg:items-center">
-              <label className="min-w-0">
-                <span className="sr-only">Categoría</span>
-                <select
-                  aria-label="Categoría"
-                  value={group}
-                  onChange={(event) => setGroup(event.target.value as GroupId)}
-                  className={FIELD}
-                >
-                  {groups.map((entry) => (
-                    <option key={entry.id} value={entry.id}>
-                      {entry.label} {entry.owned}/{entry.total}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="min-w-0">
-                <span className="sr-only">Tipo de pieza</span>
-                <select
-                  aria-label="Tipo de pieza"
-                  value={activeType}
-                  onChange={(event) => setType(event.target.value)}
-                  className={FIELD}
-                >
-                  <option value="Todos">Todos {grouped.filter((row) => (qty[row.partId] ?? 0) > 0).length}/{grouped.length}</option>
-                  {types.map((entry) => (
-                    <option key={entry.short} value={entry.short}>
-                      {entry.short} {entry.owned}/{entry.total}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="min-w-0 sm:col-span-2 lg:col-span-1">
-                <span className="sr-only">Filtra esta lista</span>
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Filtra esta lista"
-                  className={FIELD}
-                />
-              </label>
-              <p className="text-sm text-mute tabular-nums lg:text-right">
-                {ownedVisible}/{visible.length}
-              </p>
-            </div>
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-line">
-              <div className="h-full rounded-full bg-gold" style={{ width: `${progress}%` }} />
-            </div>
-          </div>
-          {visible.length === 0 && <p className="mt-3 text-mute">Ninguna pieza de este tipo coincide.</p>}
-          <div className="mt-1">
-            {blocks.map((block) => (
-              <section key={block.type}>
-                {blocks.length > 1 && (
-                  <h2 className="mt-6 text-sm font-medium tracking-[0.14em] text-gold uppercase">{block.type}</h2>
-                )}
-                {block.letters.map((section) => (
-              <div key={`${block.type}-${section.letter}`}>
-                <h3 className={`mt-4 text-xs font-medium tracking-[0.16em] uppercase ${blocks.length > 1 ? "text-mute" : "text-gold"}`}>{section.letter}</h3>
-                <ul className="grid grid-cols-1 gap-x-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                  {section.rows.map((row) => {
-                    const amount = qty[row.partId] ?? 0;
-                    const owned = amount > 0;
-                    const itemLabel = names.item(row.itemId, row.itemName);
-                    const partLabel = names.part(row.partId, row.title, row.itemId, row.itemName);
-                    return (
-                      <li key={`${row.itemId}:${row.partId}`} className={`flex min-w-0 items-center border-t border-line/40 ${owned ? "opacity-60" : ""}`}>
-                        <button
-                          type="button"
-                          aria-pressed={owned}
-                          aria-label={`${owned ? "Quitar" : "Marcar"} ${partLabel}`}
-                          onClick={() => onToggle(row.partId, owned ? 0 : 1)}
-                          className="grid h-9 w-9 shrink-0 place-items-center"
-                        >
-                          <OwnedMark on={owned} />
-                        </button>
-                        <button type="button" onClick={() => onOpen(row.itemId)} className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left">
-                          {row.image && (
-                            <img src={row.image} alt="" width={32} height={32} className="h-8 w-8 shrink-0 object-contain" />
-                          )}
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm text-bone">{itemLabel}</span>
-                            <span className="block truncate text-xs text-mute">
-                              {KIND_LABEL[row.kind]}
-                              {row.short !== "Plano" ? ` · ${row.short}` : ""}
-                              {amount > 1 ? ` · ${amount}` : ""}
-                            </span>
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+          {error && <p className="text-clay">{error}</p>}
+          {loading && <p className="text-mute">Abriendo las piezas…</p>}
+          {!loading && !error && (
+            <>
+              <div className="z-10 -mx-4 bg-ink/95 px-4 py-2 backdrop-blur-md lg:sticky lg:top-0 lg:-mx-8 lg:px-8">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,16rem)_minmax(0,1fr)_auto] sm:items-center">
+                  <label className="min-w-0">
+                    <span className="sr-only">Categoría</span>
+                    <select
+                      aria-label="Categoría"
+                      value={group}
+                      onChange={(event) => setGroup(event.target.value as GroupId)}
+                      className={FIELD}
+                    >
+                      {groups.map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.label} {entry.owned}/{entry.total}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="min-w-0">
+                    <span className="sr-only">Filtra esta lista</span>
+                    <input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="Filtra esta lista"
+                      className={FIELD}
+                    />
+                  </label>
+                  <p className="text-sm text-mute tabular-nums sm:text-right">
+                    {partOwned}/{partTotal}
+                  </p>
+                </div>
+                <div className="mt-2 h-1 overflow-hidden rounded-full bg-line">
+                  <div className="h-full rounded-full bg-gold" style={{ width: `${progress}%` }} />
+                </div>
               </div>
+              {items.length === 0 && <p className="mt-3 text-mute">Ningún objeto coincide.</p>}
+              <div className="mt-1">
+                {sections.map((section) => (
+                  <section key={section.letter}>
+                    <h2 className="mt-4 text-xs font-medium tracking-[0.16em] text-gold uppercase">{section.letter}</h2>
+                    <div className="grid grid-cols-1 gap-x-8 lg:grid-cols-2">
+                      {section.items.map((item) => {
+                        const itemLabel = names.item(item.itemId, item.itemName);
+                        return (
+                          <article key={item.itemId} className="min-w-0 border-t border-line/40 py-2">
+                            <button type="button" onClick={() => onOpen(item.itemId)} className="flex min-w-0 items-center gap-2 py-1 text-left">
+                              {item.image && <img src={item.image} alt="" width={32} height={32} className="h-8 w-8 shrink-0 object-contain" />}
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm text-bone">{itemLabel}</span>
+                                {group === "varios" && <span className="block text-xs text-mute">{KIND_LABEL[item.kind]}</span>}
+                              </span>
+                            </button>
+                            <ul>
+                              {item.parts.map((part) => {
+                                const amount = qty[part.partId] ?? 0;
+                                const partLabel = names.part(part.partId, part.title, item.itemId, item.itemName);
+                                const builtPiece = craftedKeys.has(craftKey(item.itemId, part.partId));
+                                const canBuild = part.materials.length > 0 && (part.short !== "Plano" || item.parts.length === 1);
+                                return (
+                                  <li key={part.partId} className="py-1 pl-10">
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                      <span className="min-w-28 flex-1 truncate text-sm text-bone">{part.short}</span>
+                                      <Count label={`${part.short} de ${itemLabel}`} value={amount} onChange={(next) => onToggle(part.partId, next)} />
+                                      {canBuild && (
+                                        <button
+                                          type="button"
+                                          aria-pressed={builtPiece}
+                                          onClick={() => onToggleCrafted(item.itemId, part.partId)}
+                                          className={
+                                            builtPiece
+                                              ? "rounded-full border border-moss/40 px-2.5 py-1 text-xs text-moss"
+                                              : "rounded-full border border-line px-2.5 py-1 text-xs text-bone hover:border-gold"
+                                          }
+                                        >
+                                          {builtPiece ? "Construida" : "Pieza"}
+                                        </button>
+                                      )}
+                                    </div>
+                                    {showMaterials && part.materials.length > 0 && (
+                                      <p className={`mt-0.5 text-xs text-mute ${builtPiece ? "opacity-60" : ""}`}>{materialLine(part.materials)}</p>
+                                    )}
+                                    <span className="sr-only">{partLabel}</span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
                 ))}
-              </section>
-            ))}
-          </div>
-        </>
-      )}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
@@ -344,21 +377,28 @@ export function LoadPage({
 const FIELD =
   "w-full min-w-0 rounded-full border border-line bg-panel px-3 py-2 text-sm text-bone outline-none placeholder:text-mute/70 focus:border-gold";
 
-function OwnedMark({ on }: { on: boolean }) {
+function Count({ value, label, onChange }: { value: number; label: string; onChange: (next: number) => void }) {
   return (
-    <span
-      className={
-        on
-          ? "grid h-5 w-5 shrink-0 place-items-center rounded-full bg-gold text-ink"
-          : "h-5 w-5 shrink-0 rounded-full border border-line"
-      }
-      aria-hidden="true"
-    >
-      {on && (
-        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4">
-          <path d="M3.5 8.2 6.4 11 12.5 4.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
-    </span>
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        aria-label={`Una menos de ${label}`}
+        disabled={value <= 0}
+        onClick={() => onChange(value - 1)}
+        className="grid h-7 w-7 place-items-center rounded-full border border-line text-bone disabled:opacity-30"
+      >
+        −
+      </button>
+      <span className="w-6 text-center text-sm tabular-nums text-bone">{value}</span>
+      <button
+        type="button"
+        aria-label={`Una más de ${label}`}
+        disabled={value >= 99}
+        onClick={() => onChange(value + 1)}
+        className="grid h-7 w-7 place-items-center rounded-full border border-line text-bone disabled:opacity-30"
+      >
+        +
+      </button>
+    </div>
   );
 }

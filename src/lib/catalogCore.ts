@@ -82,13 +82,13 @@ const DATA_FILES: Array<{ file: string; kind: ItemKind }> = [
   { file: "SentinelWeapons", kind: "robotic" },
 ];
 
-function isAmpPrism(raw: RawItem) {
-  return raw.type === "Amp" && /\bprism\b/i.test(raw.name ?? "");
+function isCraftedAmpPart(raw: RawItem) {
+  return raw.type === "Amp" && !/^Mote\b/i.test(raw.name ?? "");
 }
 
 function kindOf(raw: RawItem, fallback: ItemKind): ItemKind {
   if (raw.type === "Necramech") return "necramech";
-  if (raw.productCategory === "OperatorAmps" || isAmpPrism(raw)) return "amp";
+  if (raw.productCategory === "OperatorAmps" || isCraftedAmpPart(raw)) return "amp";
   return fallback;
 }
 
@@ -129,7 +129,7 @@ export async function fetchSource(): Promise<{
       fetch(`${DATA_BASE}/Misc.json`).then(async (response) => {
         if (!response.ok) throw new Error("catalog");
         const items = (await response.json()) as RawItem[];
-        return { kind: "amp" as const, items: items.filter(isAmpPrism) };
+        return { kind: "amp" as const, items: items.filter(isCraftedAmpPart) };
       }),
     ]),
     fetch(`${DATA_BASE}/Components.json`).then(async (response) => {
@@ -486,7 +486,7 @@ export function buildCatalog(
       const id = raw.uniqueName?.trim();
       const kind = kindOf(raw, group.kind);
       if (!name || !id || !kind || seen.has(id)) continue;
-      if (!isAmpPrism(raw) && raw.masterable === false) continue;
+      if (!isCraftedAmpPart(raw) && raw.masterable === false) continue;
       if (/\bexalted\b/i.test(name)) continue;
       if (/doppelganger/i.test(id)) continue;
       seen.add(id);

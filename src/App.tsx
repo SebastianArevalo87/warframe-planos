@@ -660,7 +660,9 @@ export function App() {
       ) : page === "load" ? (
         <LoadPage
           qty={collection.qty}
+          crafted={collection.crafted}
           onToggle={setPartQty}
+          onToggleCrafted={toggleCrafted}
           onOpen={showItem}
           mastered={collection.mastered}
           leveled={collection.leveled}

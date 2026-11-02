@@ -36,6 +36,39 @@ export type MarketEntry = {
   name: string;
 };
 
+const VEHICLE_GAPS: Array<{ id: string; name: string; image: string }> = [
+  {
+    id: "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisADeck",
+    name: "Bad Baby",
+    image: `${IMAGE_BASE}HoverboardSolarisADeck.png`,
+  },
+  {
+    id: "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBDeck",
+    name: "Feverspine",
+    image: `${IMAGE_BASE}HoverboardInfestedBDeck.png`,
+  },
+  {
+    id: "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusADeck",
+    name: "Flatbelly",
+    image: `${IMAGE_BASE}HoverboardCorpusADeck.png`,
+  },
+  {
+    id: "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusB/HoverboardCorpusBDeck",
+    name: "Needlenose",
+    image: `${IMAGE_BASE}HoverboardCorpusBDeck.png`,
+  },
+  {
+    id: "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusC/HoverboardCorpusCDeck",
+    name: "Runway",
+    image: `${IMAGE_BASE}HoverboardCorpusCDeck.png`,
+  },
+  {
+    id: "/Lotus/Types/Game/CrewShip/Plexus/Plexus",
+    name: "Plexus",
+    image: "https://wiki.warframe.com/images/Plexus.png",
+  },
+];
+
 const DATA_FILES: Array<{ file: string; kind: ItemKind }> = [
   { file: "Warframes", kind: "warframe" },
   { file: "Primary", kind: "primary" },
@@ -508,6 +541,22 @@ export function buildCatalog(
         parts,
       });
     }
+  }
+
+  for (const extra of VEHICLE_GAPS) {
+    if (seen.has(extra.id)) continue;
+    seen.add(extra.id);
+    items.push({
+      id: extra.id,
+      name: extra.name,
+      kind: "vehicle",
+      vaulted: false,
+      image: extra.image,
+      tradable: false,
+      slug: null,
+      setSlug: null,
+      parts: [],
+    });
   }
 
   items.sort((a, b) => a.name.localeCompare(b.name, "es"));

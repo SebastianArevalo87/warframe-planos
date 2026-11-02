@@ -2,7 +2,15 @@ const files = ["Warframes", "Primary", "Secondary", "Melee", "Archwing", "Arch-G
 const langs = ["de", "es", "fr", "it", "ja", "ko", "pl", "pt", "ru", "tc", "th", "tr", "uk", "zh"];
 const base = "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json";
 
-const ids = new Set();
+const extraIds = [
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisADeck",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBDeck",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusADeck",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusB/HoverboardCorpusBDeck",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusC/HoverboardCorpusCDeck",
+  "/Lotus/Types/Game/CrewShip/Plexus/Plexus",
+];
+const ids = new Set(extraIds);
 for (const file of files) {
   const items = await fetch(`${base}/${file}.json`).then((response) => response.json());
   for (const item of items) {
@@ -24,6 +32,7 @@ for (const lang of langs) {
     const name = dict[id]?.name;
     if (typeof name === "string" && name && !name.startsWith("/Lotus/")) names[id] = name;
   }
+  names["/Lotus/Types/Game/CrewShip/Plexus/Plexus"] = "Plexus";
   await writeFile(`public/i18n/${lang}.json`, JSON.stringify(names));
   const sample = Object.entries(names).filter(([, name]) => /nukor|plasmor/i.test(name)).map(([, name]) => name);
   console.log(lang, Object.keys(names).length, sample.slice(0, 8).join(" | "));

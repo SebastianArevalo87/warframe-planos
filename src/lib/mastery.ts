@@ -5,7 +5,7 @@ const MR30_XP = RANK_STEP * 30 * 30;
 const LEGENDARY_STEP = 147_500;
 
 export function itemMastery(kind: ItemKind, id: string): number {
-  if (kind === "warframe" || kind === "archwing" || kind === "companion" || kind === "necramech") return 6000;
+  if (kind === "warframe" || kind === "archwing" || kind === "companion" || kind === "necramech" || kind === "vehicle") return 6000;
   if (kind === "robotic" && id.includes("SentinelPowersuits")) return 6000;
   return 3000;
 }

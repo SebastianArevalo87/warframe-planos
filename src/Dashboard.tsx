@@ -101,7 +101,7 @@ export function Dashboard({
       primary: tally((kind) => kind === "primary"),
       secondary: tally((kind) => kind === "secondary"),
       melee: tally((kind) => kind === "melee"),
-      archwing: tally((kind) => kind === "archwing" || kind === "necramech"),
+      archwing: tally((kind) => kind === "archwing" || kind === "necramech" || kind === "vehicle"),
       archgun: tally((kind) => kind === "archgun"),
       archmelee: tally((kind) => kind === "archmelee"),
       companion: tally((kind) => kind === "companion"),
@@ -187,7 +187,7 @@ export function Dashboard({
           <SmallMeter label="Primarias" value={gear ? masteredCount.primary.owned : null} total={masteredCount.primary.total} onClick={() => onMastered("primary")} />
           <SmallMeter label="Secundarias" value={gear ? masteredCount.secondary.owned : null} total={masteredCount.secondary.total} onClick={() => onMastered("secondary")} />
           <SmallMeter label="Cuerpo a cuerpo" value={gear ? masteredCount.melee.owned : null} total={masteredCount.melee.total} onClick={() => onMastered("melee")} />
-          <SmallMeter label="Archwing" value={gear ? masteredCount.archwing.owned : null} total={masteredCount.archwing.total} onClick={() => onMastered("vehicle")} />
+          <SmallMeter label="Vehículo" value={gear ? masteredCount.archwing.owned : null} total={masteredCount.archwing.total} onClick={() => onMastered("vehicle")} />
           <SmallMeter label="Archcañón" value={gear ? masteredCount.archgun.owned : null} total={masteredCount.archgun.total} onClick={() => onMastered("archgun")} />
           <SmallMeter label="Archmelee" value={gear ? masteredCount.archmelee.owned : null} total={masteredCount.archmelee.total} onClick={() => onMastered("archmelee")} />
           <SmallMeter label="Compañero" value={gear ? masteredCount.companion.owned : null} total={masteredCount.companion.total} onClick={() => onMastered("companion")} />

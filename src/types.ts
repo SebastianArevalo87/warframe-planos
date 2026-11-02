@@ -9,7 +9,8 @@ export type ItemKind =
   | "necramech"
   | "companion"
   | "robotic"
-  | "amp";
+  | "amp"
+  | "vehicle";
 
 export const KIND_LABEL: Record<ItemKind, string> = {
   warframe: "Warframe",
@@ -23,6 +24,7 @@ export const KIND_LABEL: Record<ItemKind, string> = {
   companion: "Compañero",
   robotic: "Robótico",
   amp: "Amp",
+  vehicle: "Vehículo",
 };
 
 export function isItemKind(value: unknown): value is ItemKind {

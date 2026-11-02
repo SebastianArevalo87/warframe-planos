@@ -22,7 +22,7 @@ const GROUPS: Array<{ id: MasteryGroupId; label: string }> = [
 ];
 
 function inGroup(kind: ItemKind, group: MasteryGroupId) {
-  if (group === "vehicle") return kind === "archwing" || kind === "necramech";
+  if (group === "vehicle") return kind === "archwing" || kind === "necramech" || kind === "vehicle";
   return kind === group;
 }
 

@@ -32,6 +32,11 @@ const MARKS: [RegExp, string][] = [
   [/grustrag|grineerdeathsquad/i, "Tres de Grustrag"],
   [/wolf/i, "El Lobo"],
   [/acolyte/i, "Acólito"],
+  [/hyena/i, "Hiena"],
+  [/vor/i, "Capitán Vor"],
+  [/jackal/i, "Chacal"],
+  [/raptor/i, "Raptor"],
+  [/alad/i, "Alad V"],
 ];
 
 export type OfficialProfile = {
@@ -112,7 +117,7 @@ export function applyOfficialProfile(collection: Collection, known: Set<string>,
   }
   const dossier: ProfileDossier = {
     accountId: profile.accountId,
-    displayName: profile.displayName,
+    displayName: profile.displayName.replace(/[\uE000-\uF8FF]/g, "").trim(),
     rank: profile.rank,
     clan: profile.clan,
     clanTier: profile.clanTier,

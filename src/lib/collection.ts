@@ -99,7 +99,7 @@ function readDossier(value: unknown): ProfileDossier | undefined {
   const alignment = raw.alignment && typeof raw.alignment === "object" ? raw.alignment : { value: 0, wisdom: 0 };
   return {
     accountId: raw.accountId,
-    displayName: raw.displayName.slice(0, 40),
+    displayName: raw.displayName.replace(/[\uE000-\uF8FF]/g, "").trim().slice(0, 40),
     rank: whole(raw.rank, 40),
     clan: typeof raw.clan === "string" ? raw.clan.slice(0, 40) : "",
     clanTier: raw.clanTier == null || !Number.isFinite(Number(raw.clanTier)) ? null : whole(raw.clanTier, 20),

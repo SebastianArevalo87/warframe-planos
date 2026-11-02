@@ -66,7 +66,7 @@ function readProfile(payload: unknown) {
   const result = Array.isArray(root.Results) ? root.Results[0] : null;
   if (!result || typeof result !== "object") return null;
   const row = result as Record<string, unknown>;
-  const displayName = text(row.DisplayName, 40);
+  const displayName = text(row.DisplayName, 40).replace(/[\uE000-\uF8FF]/g, "").trim();
   const account = row.AccountId;
   const accountId = account && typeof account === "object" ? text((account as { $oid?: unknown }).$oid, 24) : text(account, 24);
   if (!displayName || !idPattern.test(accountId)) return null;

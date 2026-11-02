@@ -384,7 +384,7 @@ export function App() {
   async function loadOfficial() {
     const accountId = profileId.trim().toLowerCase();
     if (!/^[a-f0-9]{24}$/.test(accountId)) {
-      setNotice("Ese no es el id del perfil. En warframe.com, con la sesión iniciada, abre /api/user-data y copia user_id.");
+      setNotice("Ese no es el id. En warframe.com, con la sesión iniciada, abre la consola y copia el user_id de la cookie user-info.");
       return;
     }
     setProfileBusy(true);
@@ -581,7 +581,7 @@ export function App() {
             <h1 className="text-3xl font-medium leading-none text-bone">Planos</h1>
           </button>
           <div className="flex flex-wrap items-center justify-end gap-3">
-            <MasteryBadge mastered={collection.mastered} />
+            <MasteryBadge mastered={collection.mastered} officialRank={collection.dossier?.rank ?? null} />
             <label>
               <span className="sr-only">Idioma del juego</span>
               <select
@@ -676,7 +676,7 @@ export function App() {
                 {profileBusy ? "Leyendo el perfil…" : "Cargar perfil del juego"}
               </button>
               <p className="mt-2 text-xs text-mute">
-                El nombre no alcanza: en warframe.com, ya dentro de tu cuenta, abre /api/user-data y pega user_id. No borra los planos que marcaste.
+                En warframe.com, ya dentro, abre la consola con F12 y pega copy(JSON.parse(decodeURIComponent(document.cookie.match(/user-info=([^;]+)/)[1])).user_id). Eso copia el id. /api/user-data ya no existe.
               </p>
               {accountHint && <p className="mt-2 text-xs text-clay">{accountHint}</p>}
             </div>

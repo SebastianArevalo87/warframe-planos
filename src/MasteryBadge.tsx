@@ -36,7 +36,35 @@ export function MasteryMark({ xp, ready = true }: { xp: number; ready?: boolean 
   );
 }
 
-export function MasteryBadge({ mastered }: { mastered: string[] }) {
+export function MasteryBadge({ mastered, officialRank = null }: { mastered: string[]; officialRank?: number | null }) {
+  if (officialRank != null) return <OfficialMark rank={officialRank} />;
+  return <CalculatedBadge mastered={mastered} />;
+}
+
+function OfficialMark({ rank }: { rank: number }) {
+  const legendary = Math.max(0, rank - 30);
+  const mark = legendary > 0 ? `L${legendary}` : String(rank);
+  const label = `Rango ${mark} del perfil oficial.`;
+  return (
+    <div className="flex items-center gap-2" aria-label={label} title={label}>
+      <span className="relative grid h-11 w-11 shrink-0 place-items-center">
+        <svg viewBox="0 0 64 64" className="absolute inset-0 h-full w-full" aria-hidden="true">
+          <circle cx="32" cy="32" r="29" fill="#1c1914" stroke="#e0b15a" strokeWidth="3" />
+          <circle cx="32" cy="32" r="23" fill="none" stroke="#e0b15a" strokeWidth="1.2" opacity="0.55" />
+          <path d="M32 8 36 16 32 14 28 16Z" fill="#e0b15a" />
+          <path d="M18 40 32 54 46 40" fill="none" stroke="#e0b15a" strokeWidth="2" />
+        </svg>
+        <span className={`relative -mt-1 font-medium text-gold ${mark.length > 2 ? "text-[10px]" : "text-sm"}`}>{mark}</span>
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm text-bone">Rango {mark}</span>
+        <span className="block text-[11px] text-mute">Perfil oficial</span>
+      </span>
+    </div>
+  );
+}
+
+function CalculatedBadge({ mastered }: { mastered: string[] }) {
   const foundersVisible = useShowFounders();
   const [ready, setReady] = useState(false);
   const [rows, setRows] = useState<Array<{ id: string; kind: ItemKind }>>([]);

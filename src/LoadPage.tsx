@@ -114,7 +114,7 @@ export function LoadPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [group, setGroup] = useState<GroupId>("warframe");
-  const [type, setType] = useState("Plano");
+  const [type, setType] = useState("Todos");
   const [query, setQuery] = useState("");
   const opened = masteryGroup(window.location.hash);
   const [mode, setMode] = useState<"parts" | "mastered">(opened ? "mastered" : "parts");
@@ -155,7 +155,7 @@ export function LoadPage({
       .sort((a, b) => compareTypes(a.short, b.short));
   }, [grouped, qty]);
 
-  const activeType = types.some((entry) => entry.short === type) ? type : (types[0]?.short ?? "");
+  const activeType = type !== "Todos" && types.some((entry) => entry.short === type) ? type : "Todos";
 
   const groups = useMemo(
     () =>
@@ -170,18 +170,27 @@ export function LoadPage({
   const words = fold(query.trim()).split(/\s+/).filter(Boolean);
   const visible = grouped
     .filter((row) => {
-      if (row.short !== activeType) return false;
+      if (activeType !== "Todos" && row.short !== activeType) return false;
       const haystack = `${fold(row.itemName)} ${fold(names.item(row.itemId, row.itemName))} ${fold(row.title)} ${fold(names.part(row.partId, row.title, row.itemId, row.itemName))}`;
       return words.every((word) => haystack.includes(word));
     })
-    .sort((a, b) => names.item(a.itemId, a.itemName).localeCompare(names.item(b.itemId, b.itemName), ordering) || a.title.localeCompare(b.title, ordering));
+    .sort((a, b) => {
+      const byType = compareTypes(a.short, b.short);
+      if (byType !== 0) return byType;
+      return names.item(a.itemId, a.itemName).localeCompare(names.item(b.itemId, b.itemName), ordering) || a.title.localeCompare(b.title, ordering);
+    });
   const ownedVisible = visible.filter((row) => (qty[row.partId] ?? 0) > 0).length;
   const progress = visible.length === 0 ? 0 : Math.round((ownedVisible / visible.length) * 100);
-  const sections: Array<{ letter: string; rows: LoadRow[] }> = [];
+  const blocks: Array<{ type: string; letters: Array<{ letter: string; rows: LoadRow[] }> }> = [];
   for (const row of visible) {
+    let block = blocks[blocks.length - 1];
+    if (!block || block.type !== row.short) {
+      block = { type: row.short, letters: [] };
+      blocks.push(block);
+    }
     const letter = letterOf(names.item(row.itemId, row.itemName));
-    const last = sections[sections.length - 1];
-    if (!last || last.letter !== letter) sections.push({ letter, rows: [row] });
+    const last = block.letters[block.letters.length - 1];
+    if (!last || last.letter !== letter) block.letters.push({ letter, rows: [row] });
     else last.rows.push(row);
   }
 
@@ -250,6 +259,7 @@ export function LoadPage({
                   onChange={(event) => setType(event.target.value)}
                   className={FIELD}
                 >
+                  <option value="Todos">Todos {grouped.filter((row) => (qty[row.partId] ?? 0) > 0).length}/{grouped.length}</option>
                   {types.map((entry) => (
                     <option key={entry.short} value={entry.short}>
                       {entry.short} {entry.owned}/{entry.total}
@@ -276,9 +286,14 @@ export function LoadPage({
           </div>
           {visible.length === 0 && <p className="mt-3 text-mute">Ninguna pieza de este tipo coincide.</p>}
           <div className="mt-1">
-            {sections.map((section) => (
-              <section key={section.letter}>
-                <h2 className="mt-4 text-xs font-medium tracking-[0.16em] text-gold uppercase">{section.letter}</h2>
+            {blocks.map((block) => (
+              <section key={block.type}>
+                {blocks.length > 1 && (
+                  <h2 className="mt-6 text-sm font-medium tracking-[0.14em] text-gold uppercase">{block.type}</h2>
+                )}
+                {block.letters.map((section) => (
+              <div key={`${block.type}-${section.letter}`}>
+                <h3 className={`mt-4 text-xs font-medium tracking-[0.16em] uppercase ${blocks.length > 1 ? "text-mute" : "text-gold"}`}>{section.letter}</h3>
                 <ul className="grid grid-cols-1 gap-x-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {section.rows.map((row) => {
                     const amount = qty[row.partId] ?? 0;
@@ -313,6 +328,8 @@ export function LoadPage({
                     );
                   })}
                 </ul>
+              </div>
+                ))}
               </section>
             ))}
           </div>

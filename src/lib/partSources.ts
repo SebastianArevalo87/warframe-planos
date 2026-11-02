@@ -1,5 +1,6 @@
 export type SourcedPart = {
   lines: string[];
+  places: string[];
   market: string | null;
 };
 
@@ -74,12 +75,14 @@ function readSources(item: RawItem): ItemSources {
   const byName: Record<string, SourcedPart> = {};
   const siblingsHaveDrops = components.some((part) => part.name !== "Blueprint" && bestDrops(part.drops).length > 0);
   for (const part of components) {
-    const lines = bestDrops(part.drops).map((drop) => speak(drop.location, drop.chance));
+    const drops = bestDrops(part.drops);
+    const lines = drops.map((drop) => speak(drop.location, drop.chance));
+    const places = drops.map((drop) => drop.location);
     const market =
       part.name === "Blueprint" && lines.length === 0 && siblingsHaveDrops && typeof item.bpCost === "number"
         ? `Cómpralo en el mercado del orbitador por ${item.bpCost.toLocaleString("es")} créditos.`
         : null;
-    const sourced = { lines, market };
+    const sourced = { lines, places, market };
     if (part.id) byId[part.id] = sourced;
     if (part.name) byName[part.name] = sourced;
   }

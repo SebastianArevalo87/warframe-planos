@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchItemIndex } from "./lib/catalogRemote.ts";
 import { fetchItemSources, type ItemSources } from "./lib/partSources.ts";
 import { fissureMatches, fetchFissures, relicEra, type FarmFissure } from "./lib/fissures.ts";
+import { fetchPlaceRewards, matchReward, placeKey, type CatalogDrop } from "./lib/missionDrops.ts";
 import { vendorOffer } from "./lib/vendorOffers.ts";
 import { supabase } from "./lib/supabase.ts";
 import { craftKey } from "./lib/collection.ts";
@@ -33,6 +34,7 @@ type DropChance = {
   partTitle: string;
   image: string | null;
   amount: number;
+  bonus: boolean;
 };
 
 type DropRoute = {
@@ -72,6 +74,7 @@ export function FarmPlan({
   const [sources, setSources] = useState<Record<string, ItemSources>>({});
   const [sourcesReady, setSourcesReady] = useState(false);
   const [fissures, setFissures] = useState<FarmFissure[]>([]);
+  const [sideDrops, setSideDrops] = useState<Record<string, CatalogDrop[]>>({});
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -145,7 +148,36 @@ export function FarmPlan({
     };
   }, [items]);
 
-  const routes = useMemo(() => buildRoutes(items, sources, fissures, collection.qty), [items, sources, fissures, collection.qty]);
+  useEffect(() => {
+    if (!sourcesReady || !supabase) {
+      setSideDrops({});
+      return;
+    }
+    const places = new Set<string>();
+    for (const item of items) {
+      for (const part of item.parts) {
+        const finalPiece = part.short === "Plano" && item.parts.length > 1;
+        const source = partSource(sources[item.id], part.id, part.short, finalPiece);
+        for (const place of source?.places ?? []) places.add(placeKey(place));
+      }
+    }
+    if (places.size === 0) {
+      setSideDrops({});
+      return;
+    }
+    let cancelled = false;
+    void loadSideDrops([...places], new Set(items.flatMap((item) => item.parts.map((part) => part.id)))).then((next) => {
+      if (!cancelled) setSideDrops(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [items, sources, sourcesReady]);
+
+  const routes = useMemo(
+    () => buildRoutes(items, sources, fissures, sideDrops, collection.qty),
+    [items, sources, fissures, sideDrops, collection.qty],
+  );
 
   if (goals.length === 0) {
     return <p className="text-sm text-mute">En Marcar, pulsa Farmear en lo que te falte. Aquí queda el camino de cada plano.</p>;
@@ -161,7 +193,7 @@ export function FarmPlan({
       {routes.length > 0 && (
         <section className="rounded-2xl border border-gold/30 bg-panel p-4">
           <h3 className="text-sm font-medium text-bone">Dónde cae ahora</h3>
-          <p className="mt-1 text-xs text-mute">Etapas y fisuras donde puede salir un plano de tu lista. Márcalo cuando te caiga.</p>
+          <p className="mt-1 text-xs text-mute">Etapas y fisuras de tu farmeo, y otros planos que también pueden caer ahí. Márcalo cuando te caiga.</p>
           <ul className="mt-3 flex flex-col gap-3">
             {routes.map((route) => (
               <li key={route.key} className="rounded-xl border border-line/80 px-3 py-2">
@@ -170,11 +202,12 @@ export function FarmPlan({
                 <ul className="mt-2 flex flex-col gap-2">
                   {route.chances.map((chance) => {
                     const label = names.part(chance.partId, chance.partTitle, chance.itemId, chance.itemName);
+                    const state = chance.amount > 0 ? "en el inventario" : chance.bonus ? "también cae aquí" : "posible drop";
                     return (
                       <li key={`${route.key}-${chance.partId}`} className="flex flex-wrap items-center gap-2">
                         {chance.image && <img src={chance.image} alt="" className="h-7 w-7 object-contain" />}
                         <span className="min-w-0 flex-1 text-sm text-bone">{label}</span>
-                        <span className="text-xs text-mute">{chance.amount > 0 ? "en el inventario" : "posible drop"}</span>
+                        <span className="text-xs text-mute">{state}</span>
                         <button
                           type="button"
                           onClick={() => onPartQty(chance.partId, Math.min(99, chance.amount + 1))}
@@ -314,6 +347,61 @@ function partSource(pack: ItemSources | undefined, partId: string, short: string
   return pack.byId[partId] ?? byRole;
 }
 
+async function loadSideDrops(places: string[], goalPartIds: Set<string>) {
+  if (!supabase || places.length === 0) return {};
+  const rewardLists = await Promise.all(places.map(async (place) => [place, await fetchPlaceRewards(place)] as const));
+  const candidates = new Set<string>();
+  for (const [, rewards] of rewardLists) {
+    for (const reward of rewards) {
+      const stripped = reward.english.replace(/\s+Blueprint$/i, "").trim();
+      candidates.add(reward.english);
+      candidates.add(stripped);
+      candidates.add(`${stripped} Blueprint`);
+    }
+  }
+  if (candidates.size === 0) return {};
+  const { data, error } = await supabase
+    .from("catalog_parts")
+    .select("id, item_id, short, title, english, image, catalog_items(name, image)")
+    .in("english", [...candidates]);
+  if (error) return {};
+  const catalog: CatalogDrop[] = [];
+  for (const entry of data ?? []) {
+    if (!entry || typeof entry !== "object") continue;
+    const row = entry as {
+      id?: unknown;
+      item_id?: unknown;
+      title?: unknown;
+      english?: unknown;
+      image?: unknown;
+      catalog_items?: { name?: unknown; image?: unknown } | { name?: unknown; image?: unknown }[] | null;
+    };
+    if (typeof row.id !== "string" || typeof row.item_id !== "string" || typeof row.title !== "string") continue;
+    if (goalPartIds.has(row.id)) continue;
+    const parent = Array.isArray(row.catalog_items) ? row.catalog_items[0] : row.catalog_items;
+    catalog.push({
+      partId: row.id,
+      itemId: row.item_id,
+      itemName: typeof parent?.name === "string" ? parent.name : row.item_id,
+      partTitle: row.title,
+      english: typeof row.english === "string" ? row.english : row.title,
+      image: typeof row.image === "string" ? row.image : typeof parent?.image === "string" ? parent.image : null,
+    });
+  }
+  const next: Record<string, CatalogDrop[]> = {};
+  for (const [place, rewards] of rewardLists) {
+    const found: CatalogDrop[] = [];
+    for (const reward of rewards) {
+      for (const part of matchReward(reward.english, catalog)) {
+        if (found.some((entry) => entry.partId === part.partId || (entry.itemId === part.itemId && entry.partTitle === part.partTitle))) continue;
+        found.push(part);
+      }
+    }
+    if (found.length > 0) next[place] = found;
+  }
+  return next;
+}
+
 function SourceNote({
   relics,
   source,
@@ -395,13 +483,17 @@ function buildRoutes(
   items: PlanItem[],
   sources: Record<string, ItemSources>,
   fissures: FarmFissure[],
+  sideDrops: Record<string, CatalogDrop[]>,
   qty: Record<string, number>,
 ): DropRoute[] {
   const byKey = new Map<string, DropRoute>();
+  const addChance = (route: DropRoute, chance: DropChance) => {
+    if (route.chances.some((entry) => entry.partId === chance.partId)) return;
+    route.chances.push(chance);
+  };
   for (const item of items) {
     for (const part of item.parts) {
       const amount = qty[part.id] ?? 0;
-      if (amount > 0) continue;
       const finalPiece = part.short === "Plano" && item.parts.length > 1;
       const source = partSource(sources[item.id], part.id, part.short, finalPiece);
       const chance: DropChance = {
@@ -411,9 +503,13 @@ function buildRoutes(
         partTitle: part.title,
         image: part.image,
         amount,
+        bonus: false,
       };
-      for (const line of source?.lines ?? []) {
-        const key = `mission:${line}`;
+      const places = source?.places ?? [];
+      for (let index = 0; index < places.length; index += 1) {
+        const place = placeKey(places[index] ?? "");
+        const line = source?.lines[index] ?? place;
+        const key = `mission:${place}`;
         const route = byKey.get(key) ?? {
           key,
           title: line.replace(/\s·\s\d+%$/, ""),
@@ -421,9 +517,10 @@ function buildRoutes(
           detail: "posible drop de misión",
           chances: [],
         };
-        if (!route.chances.some((entry) => entry.partId === chance.partId)) route.chances.push(chance);
+        if (amount === 0) addChance(route, chance);
         byKey.set(key, route);
       }
+      if (amount > 0) continue;
       for (const fissure of activeFissuresFor(part.relics, fissures)) {
         const key = `fissure:${fissure.id}`;
         const route = byKey.get(key) ?? {
@@ -433,13 +530,36 @@ function buildRoutes(
           detail: fissure.hard ? `Camino de acero · ${fissure.timeLeft}` : fissure.timeLeft,
           chances: [],
         };
-        if (!route.chances.some((entry) => entry.partId === chance.partId)) route.chances.push(chance);
+        addChance(route, chance);
         byKey.set(key, route);
       }
     }
   }
+  for (const [place, extras] of Object.entries(sideDrops)) {
+    const key = `mission:${place}`;
+    const route = byKey.get(key);
+    if (!route) continue;
+    for (const part of extras) {
+      addChance(route, {
+        partId: part.partId,
+        itemId: part.itemId,
+        itemName: part.itemName,
+        partTitle: part.partTitle,
+        image: part.image,
+        amount: qty[part.partId] ?? 0,
+        bonus: true,
+      });
+    }
+    if (route.chances.some((entry) => entry.bonus)) {
+      route.detail = "de tu farmeo y otros planos de la misma etapa";
+    }
+  }
   return [...byKey.values()]
     .filter((route) => route.chances.length > 0)
+    .map((route) => ({
+      ...route,
+      chances: [...route.chances].sort((left, right) => Number(left.bonus) - Number(right.bonus) || left.partTitle.localeCompare(right.partTitle, "es")),
+    }))
     .sort((left, right) => right.chances.length - left.chances.length || left.title.localeCompare(right.title, "es"))
     .slice(0, 8);
 }

@@ -140,9 +140,9 @@ function notices(alerts: unknown, events: unknown, now: number) {
     .sort((left, right) => left.ends - right.ends);
   const eventRows = (Array.isArray(events) ? events : []).flatMap((entry) => eventNotice(entry, now));
   return {
-    alerts: alertRows.slice(0, 4).map(stripEnds),
-    hiddenAlerts: Math.max(0, alertRows.length - 4),
-    events: eventRows.slice(0, 4).map(stripEnds),
+    alerts: alertRows.map(stripEnds),
+    hiddenAlerts: 0,
+    events: eventRows.map(stripEnds),
   };
 }
 

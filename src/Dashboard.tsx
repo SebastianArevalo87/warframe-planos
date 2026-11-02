@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { fetchAdviceParts, fetchItemIndex, type DashboardHighlight, type DashboardStats, type MasteryRow } from "./lib/catalogRemote.ts";
 import { formatMastery } from "./lib/mastery.ts";
 import { readyToMaster, relicTargets, sharedRelics, type AdvicePart, type RelicTarget } from "./lib/relicAdvice.ts";
 import { fetchCodaShop, codaElement, type CodaShop } from "./lib/coda.ts";
 import { fetchWorld, formatTimeLeft, type WorldNow } from "./lib/worldstate.ts";
+import { fetchVendors, offerLabel, type Shop, type VendorBoard } from "./lib/vendors.ts";
 import { useNames } from "./Locale.tsx";
 import { useShowFounders } from "./lib/founders.ts";
 import { KIND_LABEL, type Collection, type ItemKind, type KindFilter, type StatusFilter } from "./types.ts";
 import type { MasteryGroupId } from "./MasteryPage.tsx";
+
+type SectionId = "alerts" | "vendors" | "weather" | "mastery";
 
 export function Dashboard({
   stats,
@@ -28,7 +31,10 @@ export function Dashboard({
 }) {
   const foundersVisible = useShowFounders();
   const [world, setWorld] = useState<WorldNow | null>(null);
+  const [vendors, setVendors] = useState<VendorBoard | null>(null);
+  const [coda, setCoda] = useState<CodaShop | null>(null);
   const [worldError, setWorldError] = useState("");
+  const [section, setSection] = useState<SectionId | null>(null);
   const [parts, setParts] = useState<AdvicePart[] | null>(null);
   const [gear, setGear] = useState<MasteryRow[] | null>(null);
 
@@ -45,9 +51,31 @@ export function Dashboard({
         .catch(() => {
           if (!cancelled) setWorldError("No pude leer el tiempo del sistema.");
         });
+      void fetchVendors()
+        .then((next) => {
+          if (!cancelled) setVendors(next);
+        })
+        .catch(() => {
+          if (!cancelled) setVendors(null);
+        });
     };
     load();
     const timer = window.setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      void fetchCodaShop().then((next) => {
+        if (!cancelled) setCoda(next);
+      });
+    };
+    load();
+    const timer = window.setInterval(load, 15 * 60_000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -116,92 +144,167 @@ export function Dashboard({
   const weaponPercent = percent(masteredCount.weapons.owned, masteredCount.weapons.total);
 
   return (
-    <div className="flex flex-col gap-8">
-      <section>
-        <h2 className="text-xl font-medium text-bone">Farmeo</h2>
-        <p className="mt-1 text-sm text-mute">Lo marcas a mano. Aquí está lo que te acerca a la siguiente maestría.</p>
-        <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <MasteryHelp targets={targets} shared={shared} partsReady={parts !== null} onOpen={onOpen} />
-          </div>
-          <div className="flex flex-col gap-6 lg:col-span-5">
-            <HighlightList
-              title="Listos para fundir"
-              empty="Cuando tengas todos los planos de un ítem, aparece aquí."
-              items={stats.readyItems}
-              total={stats.ready}
-              onOpen={onOpen}
-              onSeeAll={stats.ready > stats.readyItems.length ? () => onSearch("all", "ready") : undefined}
-            />
-            <HighlightList
-              title="Les falta poco"
-              empty="Todavía no hay ítems a uno o dos planos de estar listos."
-              items={stats.almostItems}
-              total={stats.almost}
-              onOpen={onOpen}
-              onSeeAll={stats.almost > stats.almostItems.length ? () => onSearch("all", "almost") : undefined}
-            />
-          </div>
+    <div>
+      {section === null && (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Gate
+            kicker="Alertas"
+            title={world ? `${world.alerts.length} activas` : worldError ? "Sin conexión" : "Leyendo…"}
+            hint={world?.alerts[0] ? `${world.alerts[0].title} · ${world.alerts[0].timeLeft}` : world ? "No hay alertas ahora." : "Misiones con recompensa y eventos."}
+            onOpen={() => setSection("alerts")}
+          >
+            {world?.events.slice(0, 2).map((event) => (
+              <Preview key={event.id}>{event.title}</Preview>
+            ))}
+          </Gate>
+          <Gate
+            kicker="Vendedores"
+            title={vendors ? `${vendors.shops.length + 1} tiendas` : "Leyendo…"}
+            hint="Teshin, Baro, Varzia, Darvo y Eleanor, sin recorrer el mapa."
+            onOpen={() => setSection("vendors")}
+          >
+            {vendors?.shops.map((shop) => (
+              <Preview key={shop.id}>{shop.name}</Preview>
+            ))}
+            <Preview>Eleanor</Preview>
+          </Gate>
+          <Gate
+            kicker="Clima"
+            title={world?.cycles[0] ? `${world.cycles[0].label} · ${world.cycles[0].state}` : "Leyendo…"}
+            hint={world?.cycles[0] ? world.cycles[0].timeLeft : "Día, noche y ciclos de los mundos abiertos."}
+            onOpen={() => setSection("weather")}
+          >
+            {world?.cycles.slice(1).map((entry) => (
+              <Preview key={entry.label}>{`${entry.label} ${entry.state}`}</Preview>
+            ))}
+          </Gate>
+          <Gate
+            kicker="Maestría"
+            title={gear ? `${framePercent}% warframes` : "Contando…"}
+            hint={gear ? `${weaponPercent}% armas · ${stats.ready} listos · ${stats.almost} casi` : "Reliquias, fundición y lo que te falta por dominar."}
+            onOpen={() => setSection("mastery")}
+          >
+            <Preview>{gear ? `${masteredCount.frames.owned}/${masteredCount.frames.total}` : "…"}</Preview>
+            <Preview>{gear ? `${masteredCount.weapons.owned} armas` : "…"}</Preview>
+          </Gate>
         </div>
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-8">
-            <LevelList pending={pending} gearReady={gear !== null} onOpen={onOpen} onMastered={onMastered} />
-          </div>
-          <div className="flex flex-col gap-2 lg:col-span-4">
-            {world ? (
-              <>
-                <ChoiceList title="Circuito" hint="Esta semana" names={world.circuit} known={known} onOpen={onOpen} />
-                <ChoiceList title="Incarnon" hint="Circuito de acero" names={world.incarnon} known={known} onOpen={onOpen} />
-              </>
-            ) : (
-              <p className="text-sm text-mute">{worldError ? "Sin el circuito de esta semana." : "Leyendo el circuito…"}</p>
+      )}
+
+      {section === "alerts" && (
+        <Detail title="Alertas" hint="Lo que está activo ahora en el sistema." onBack={() => setSection(null)}>
+          {worldError && <p className="text-sm text-clay">{worldError}</p>}
+          {!world && !worldError && <p className="text-sm text-mute">Leyendo las alertas…</p>}
+          {world && (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <NoticeList title="Alertas" empty="No hay alertas activas." notices={world.alerts} extra={0} />
+              <NoticeList title="Eventos" empty="No hay eventos activos." notices={world.events} extra={0} />
+            </div>
+          )}
+        </Detail>
+      )}
+
+      {section === "vendors" && (
+        <Detail title="Vendedores" hint="Qué tiene cada uno, y cuánto falta para que rote." onBack={() => setSection(null)}>
+          <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+            {vendors?.shops.map((shop) => (
+              <VendorCard key={shop.id} shop={shop} />
+            ))}
+            {!vendors && <p className="text-sm text-mute">Leyendo las tiendas…</p>}
+            <div className="rounded-2xl border border-line bg-panel p-3">
+              <p className="text-[11px] font-medium tracking-[0.14em] text-gold uppercase">
+                Eleanor
+                <span className="ml-2 font-normal tracking-normal text-mute normal-case">
+                  {coda ? `Lote ${coda.batch} · ${formatTimeLeft(new Date(coda.until).toISOString())}` : "Armas Coda"}
+                </span>
+              </p>
+              <p className="mt-1 text-xs text-mute">Höllvania · la tienda rota cada 4 días.</p>
+              <CodaList shop={coda} gear={gear} mastered={collection.mastered} onOpen={onOpen} />
+            </div>
+            {world && (
+              <div className="flex flex-col gap-3">
+                <ChoiceList title="Teshin · Circuito" hint="Esta semana" names={world.circuit} known={known} onOpen={onOpen} />
+                <ChoiceList title="Teshin · Incarnon" hint="Circuito de acero" names={world.incarnon} known={known} onOpen={onOpen} />
+              </div>
             )}
-            <CodaList gear={gear} mastered={collection.mastered} onOpen={onOpen} />
           </div>
-        </div>
-      </section>
+        </Detail>
+      )}
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-bone">
-          Tu equipo
-          {accountName ? <span className="ml-2 font-normal text-mute">{accountName}</span> : null}
-        </h2>
-        <div className="grid grid-cols-3 gap-2">
-          <BigNumber
-            label="Warframes"
-            value={gear ? masteredCount.frames.owned : null}
-            total={masteredCount.frames.total}
-            percent={framePercent}
-            onClick={() => onMastered("warframe")}
-          />
-          <BigNumber
-            label="Armas"
-            value={gear ? masteredCount.weapons.owned : null}
-            total={masteredCount.weapons.total}
-            percent={weaponPercent}
-            onClick={() => onMastered("primary")}
-          />
-          <SellCard copies={stats.sellCopies} items={stats.sellItemCount} onClick={onSell} />
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <SmallMeter label="Primarias" value={gear ? masteredCount.primary.owned : null} total={masteredCount.primary.total} onClick={() => onMastered("primary")} />
-          <SmallMeter label="Secundarias" value={gear ? masteredCount.secondary.owned : null} total={masteredCount.secondary.total} onClick={() => onMastered("secondary")} />
-          <SmallMeter label="Cuerpo a cuerpo" value={gear ? masteredCount.melee.owned : null} total={masteredCount.melee.total} onClick={() => onMastered("melee")} />
-          <SmallMeter label="Vehículo" value={gear ? masteredCount.archwing.owned : null} total={masteredCount.archwing.total} onClick={() => onMastered("vehicle")} />
-          <SmallMeter label="Archcañón" value={gear ? masteredCount.archgun.owned : null} total={masteredCount.archgun.total} onClick={() => onMastered("archgun")} />
-          <SmallMeter label="Archmelee" value={gear ? masteredCount.archmelee.owned : null} total={masteredCount.archmelee.total} onClick={() => onMastered("archmelee")} />
-          <SmallMeter label="Compañero" value={gear ? masteredCount.companion.owned : null} total={masteredCount.companion.total} onClick={() => onMastered("companion")} />
-          <SmallMeter label="Robótico" value={gear ? masteredCount.robotic.owned : null} total={masteredCount.robotic.total} onClick={() => onMastered("robotic")} />
-          <SmallMeter label="Amps" value={gear ? masteredCount.amp.owned : null} total={masteredCount.amp.total} onClick={() => onMastered("amp")} />
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <CountCard label="Planos tuyos" value={stats.ownedParts} hint={`de ${stats.partTotal}`} onClick={() => onSearch("all", "owned")} />
-          <CountCard label="Listos" value={stats.ready} hint="para fundir" onClick={() => onSearch("all", "ready")} />
-          <CountCard label="Casi" value={stats.almost} hint="faltan 1 o 2" onClick={() => onSearch("all", "almost")} />
-        </div>
-      </section>
+      {section === "weather" && (
+        <Detail title="Clima" hint="El ciclo de cada mundo abierto." onBack={() => setSection(null)}>
+          {worldError && <p className="text-sm text-clay">{worldError}</p>}
+          {!world && !worldError && <p className="text-sm text-mute">Leyendo los ciclos…</p>}
+          {world && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {world.cycles.map((entry) => (
+                <article key={entry.label} className="rounded-2xl border border-line bg-panel p-4">
+                  <p className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">{entry.label}</p>
+                  <p className="mt-2 text-2xl font-medium text-bone">{entry.state}</p>
+                  <p className="mt-1 text-sm text-mute">{entry.timeLeft}</p>
+                </article>
+              ))}
+            </div>
+          )}
+        </Detail>
+      )}
 
-      <WorldPanel world={world} error={worldError} />
+      {section === "mastery" && (
+        <Detail
+          title="Maestría"
+          hint={accountName ? accountName : "Lo marcas a mano. Aquí está lo que te acerca al siguiente rango."}
+          onBack={() => setSection(null)}
+        >
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            <div className="lg:col-span-7">
+              <MasteryHelp targets={targets} shared={shared} partsReady={parts !== null} onOpen={onOpen} />
+            </div>
+            <div className="flex flex-col gap-6 lg:col-span-5">
+              <HighlightList
+                title="Listos para fundir"
+                empty="Cuando tengas todos los planos de un ítem, aparece aquí."
+                items={stats.readyItems}
+                total={stats.ready}
+                onOpen={onOpen}
+                onSeeAll={stats.ready > stats.readyItems.length ? () => onSearch("all", "ready") : undefined}
+              />
+              <HighlightList
+                title="Les falta poco"
+                empty="Todavía no hay ítems a uno o dos planos de estar listos."
+                items={stats.almostItems}
+                total={stats.almost}
+                onOpen={onOpen}
+                onSeeAll={stats.almost > stats.almostItems.length ? () => onSearch("all", "almost") : undefined}
+              />
+            </div>
+          </div>
+          <div className="mt-6">
+            <LevelList pending={pending} gearReady={gear !== null} onOpen={onOpen} onMastered={() => onMastered()} />
+          </div>
+          <div className="mt-6 flex flex-col gap-3">
+            <div className="grid grid-cols-3 gap-2">
+              <BigNumber label="Warframes" value={gear ? masteredCount.frames.owned : null} total={masteredCount.frames.total} percent={framePercent} onClick={() => onMastered("warframe")} />
+              <BigNumber label="Armas" value={gear ? masteredCount.weapons.owned : null} total={masteredCount.weapons.total} percent={weaponPercent} onClick={() => onMastered("primary")} />
+              <SellCard copies={stats.sellCopies} items={stats.sellItemCount} onClick={onSell} />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <SmallMeter label="Primarias" value={gear ? masteredCount.primary.owned : null} total={masteredCount.primary.total} onClick={() => onMastered("primary")} />
+              <SmallMeter label="Secundarias" value={gear ? masteredCount.secondary.owned : null} total={masteredCount.secondary.total} onClick={() => onMastered("secondary")} />
+              <SmallMeter label="Cuerpo a cuerpo" value={gear ? masteredCount.melee.owned : null} total={masteredCount.melee.total} onClick={() => onMastered("melee")} />
+              <SmallMeter label="Vehículo" value={gear ? masteredCount.archwing.owned : null} total={masteredCount.archwing.total} onClick={() => onMastered("vehicle")} />
+              <SmallMeter label="Archcañón" value={gear ? masteredCount.archgun.owned : null} total={masteredCount.archgun.total} onClick={() => onMastered("archgun")} />
+              <SmallMeter label="Archmelee" value={gear ? masteredCount.archmelee.owned : null} total={masteredCount.archmelee.total} onClick={() => onMastered("archmelee")} />
+              <SmallMeter label="Compañero" value={gear ? masteredCount.companion.owned : null} total={masteredCount.companion.total} onClick={() => onMastered("companion")} />
+              <SmallMeter label="Robótico" value={gear ? masteredCount.robotic.owned : null} total={masteredCount.robotic.total} onClick={() => onMastered("robotic")} />
+              <SmallMeter label="Amps" value={gear ? masteredCount.amp.owned : null} total={masteredCount.amp.total} onClick={() => onMastered("amp")} />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <CountCard label="Planos tuyos" value={stats.ownedParts} hint={`de ${stats.partTotal}`} onClick={() => onSearch("all", "owned")} />
+              <CountCard label="Listos" value={stats.ready} hint="para fundir" onClick={() => onSearch("all", "ready")} />
+              <CountCard label="Casi" value={stats.almost} hint="faltan 1 o 2" onClick={() => onSearch("all", "almost")} />
+            </div>
+          </div>
+        </Detail>
+      )}
     </div>
   );
 }
@@ -360,16 +463,17 @@ function HighlightList({
 }
 
 function CodaList({
+  shop,
   gear,
   mastered,
   onOpen,
 }: {
+  shop: CodaShop | null;
   gear: MasteryRow[] | null;
   mastered: string[];
   onOpen: (id: string) => void;
 }) {
   const names = useNames();
-  const [shop, setShop] = useState<CodaShop | null>(null);
   const done = useMemo(() => new Set(mastered), [mastered]);
   const byName = useMemo(() => {
     const map = new Map<string, MasteryRow>();
@@ -377,89 +481,123 @@ function CodaList({
     return map;
   }, [gear]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = () => {
-      void fetchCodaShop().then((next) => {
-        if (!cancelled) setShop(next);
-      });
-    };
-    load();
-    const timer = window.setInterval(load, 15 * 60_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
-
   const weapons = shop
     ? [...shop.weapons].sort((a, b) => (b.percent ?? -1) - (a.percent ?? -1) || a.name.localeCompare(b.name, "es"))
     : [];
-  const hint = shop
-    ? `Lote ${shop.batch} · ${formatTimeLeft(new Date(shop.until).toISOString())}`
-    : "Leyendo…";
 
+  if (weapons.length === 0) return <p className="mt-2 text-sm text-mute">Leyendo la tienda…</p>;
   return (
-    <div className="rounded-xl border border-line bg-panel px-3 py-2">
-      <p className="text-[11px] font-medium tracking-[0.14em] text-gold uppercase">
-        Coda
-        <span className="ml-2 font-normal tracking-normal text-mute normal-case">{hint}</span>
-      </p>
-      {weapons.length === 0 ? (
-        <p className="mt-2 text-sm text-mute">Leyendo la tienda…</p>
-      ) : (
-        <ul className="mt-2 flex flex-wrap gap-2">
-          {weapons.map((weapon) => {
-            const item = byName.get(weapon.name.toLowerCase());
-            const label = names.item(item?.id ?? "", weapon.name);
-            const owned = item ? done.has(item.id) : false;
-            const percent = weapon.percent == null
-              ? ""
-              : weapon.percent.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-            const bonus = weapon.element && percent ? `${codaElement(weapon.element)} ${percent}%` : percent ? `${percent}%` : "";
-            const text = bonus ? `${label} · ${bonus}` : label;
-            const className = owned
-              ? "rounded-full border border-moss/40 px-2.5 py-1 text-sm text-moss"
-              : "rounded-full border border-line px-2.5 py-1 text-sm text-bone hover:border-gold";
-            const note = owned ? "dominado" : "sin dominar";
-            if (!item) return <li key={weapon.name} className={className}>{text}</li>;
-            return (
-              <li key={weapon.name}>
-                <button type="button" onClick={() => onOpen(item.id)} className={className} aria-label={`${text}, ${note}`}>
-                  {text}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
+    <ul className="mt-2 flex flex-wrap gap-2">
+      {weapons.map((weapon) => {
+        const item = byName.get(weapon.name.toLowerCase());
+        const label = names.item(item?.id ?? "", weapon.name);
+        const owned = item ? done.has(item.id) : false;
+        const percent = weapon.percent == null
+          ? ""
+          : weapon.percent.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        const bonus = weapon.element && percent ? `${codaElement(weapon.element)} ${percent}%` : percent ? `${percent}%` : "";
+        const text = bonus ? `${label} · ${bonus}` : label;
+        const className = owned
+          ? "rounded-full border border-moss/40 px-2.5 py-1 text-sm text-moss"
+          : "rounded-full border border-line px-2.5 py-1 text-sm text-bone hover:border-gold";
+        const note = owned ? "dominado" : "sin dominar";
+        if (!item) return <li key={weapon.name} className={className}>{text}</li>;
+        return (
+          <li key={weapon.name}>
+            <button type="button" onClick={() => onOpen(item.id)} className={className} aria-label={`${text}, ${note}`}>
+              {text}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
-function WorldPanel({ world, error }: { world: WorldNow | null; error: string }) {
-  const alerts = world?.alerts.slice(0, 2) ?? [];
-  const events = world?.events.slice(0, 2) ?? [];
-  const hiddenAlerts = (world?.hiddenAlerts ?? 0) + Math.max(0, (world?.alerts.length ?? 0) - alerts.length);
+function Gate({
+  kicker,
+  title,
+  hint,
+  onOpen,
+  children,
+}: {
+  kicker: string;
+  title: string;
+  hint: string;
+  onOpen: () => void;
+  children?: ReactNode;
+}) {
   return (
-    <section className="border-t border-line pt-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-[11px] font-medium tracking-[0.16em] text-mute uppercase">Sistema</h2>
-        {error && <p className="text-xs text-clay">{error}</p>}
-        {!world && !error && <p className="text-xs text-mute">Leyendo el sistema…</p>}
-      </div>
-      {world && (
+    <button type="button" onClick={onOpen} className="flex h-full min-w-0 flex-col rounded-2xl border border-line bg-panel p-4 text-left hover:border-gold">
+      <span className="text-[11px] font-medium tracking-[0.16em] text-gold uppercase">{kicker}</span>
+      <span className="mt-2 text-2xl font-medium text-bone">{title}</span>
+      <span className="mt-1 text-sm text-mute">{hint}</span>
+      {children && <span className="mt-3 flex flex-wrap gap-1.5">{children}</span>}
+    </button>
+  );
+}
+
+function Preview({ children }: { children: ReactNode }) {
+  return <span className="rounded-full border border-line px-2.5 py-1 text-xs text-bone">{children}</span>;
+}
+
+function Detail({ title, hint, onBack, children }: { title: string; hint: string; onBack: () => void; children: ReactNode }) {
+  return (
+    <section>
+      <button type="button" onClick={onBack} className="text-sm text-gold">
+        Volver
+      </button>
+      <h2 className="mt-2 text-xl font-medium text-bone">{title}</h2>
+      <p className="mt-1 text-sm text-mute">{hint}</p>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function VendorCard({ shop }: { shop: Shop }) {
+  const names = useNames();
+  const when = shop.here ? `se va en ${shop.timeLeft}` : shop.timeLeft ? `llega en ${shop.timeLeft}` : "fuera";
+  return (
+    <article className="min-w-0 self-start rounded-2xl border border-line bg-panel p-3">
+      <p className="text-[11px] font-medium tracking-[0.14em] text-gold uppercase">
+        {shop.name}
+        <span className="ml-2 font-normal tracking-normal text-mute normal-case">{when}</span>
+      </p>
+      {shop.place && <p className="mt-1 text-xs text-mute">{shop.place}</p>}
+      {shop.id === "teshin" && shop.offers.length > 0 && <p className="mt-3 text-xs text-mute">Rotación semanal</p>}
+      {shop.offers.length === 0 ? (
+        <p className="mt-2 text-sm text-mute">{shop.here ? "Sin stock publicado." : "Todavía no abrió el inventario."}</p>
+      ) : (
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {shop.offers.map((offer) => (
+            <li
+              key={offer.id}
+              className={
+                offer.current
+                  ? "rounded-full border border-gold/50 px-2.5 py-1 text-sm text-gold"
+                  : "rounded-full border border-line px-2.5 py-1 text-sm text-bone"
+              }
+            >
+              {names.item(offer.id, offerLabel(offer.name, names.locale))}
+              {offer.detail ? ` · ${offer.detail}` : ""}
+            </li>
+          ))}
+        </ul>
+      )}
+      {shop.always.length > 0 && (
         <>
-          <p className="mt-2 text-xs text-mute">
-            {world.cycles.map((entry) => `${entry.label} ${entry.state} · ${entry.timeLeft}`).join("   ")}
-          </p>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            <NoticeList title="Alertas" empty="No hay alertas activas." notices={alerts} extra={hiddenAlerts} />
-            <NoticeList title="Eventos" empty="No hay eventos activos." notices={events} extra={Math.max(0, world.events.length - events.length)} />
-          </div>
+          <p className="mt-3 text-xs text-mute">Siempre</p>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {shop.always.map((offer) => (
+              <li key={offer.id} className="rounded-full border border-line px-2.5 py-1 text-sm text-mute">
+                {offerLabel(offer.name, names.locale)}
+                {offer.detail ? ` · ${offer.detail}` : ""}
+              </li>
+            ))}
+          </ul>
         </>
       )}
-    </section>
+    </article>
   );
 }
 

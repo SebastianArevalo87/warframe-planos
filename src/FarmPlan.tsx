@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fetchItemIndex } from "./lib/catalogRemote.ts";
 import { fetchItemSources, type ItemSources } from "./lib/partSources.ts";
+import { fissureMatches, fetchFissures, relicEra, type FarmFissure } from "./lib/fissures.ts";
 import { vendorOffer } from "./lib/vendorOffers.ts";
 import { supabase } from "./lib/supabase.ts";
 import { craftKey } from "./lib/collection.ts";
@@ -23,6 +24,23 @@ type PlanItem = {
   name: string;
   image: string | null;
   parts: PlanPart[];
+};
+
+type DropChance = {
+  partId: string;
+  itemId: string;
+  itemName: string;
+  partTitle: string;
+  image: string | null;
+  amount: number;
+};
+
+type DropRoute = {
+  key: string;
+  title: string;
+  kind: "mission" | "fissure";
+  detail: string;
+  chances: DropChance[];
 };
 
 const RARITY: Record<RelicRarity, string> = {
@@ -53,6 +71,7 @@ export function FarmPlan({
   const [known, setKnown] = useState<Set<string>>(new Set());
   const [sources, setSources] = useState<Record<string, ItemSources>>({});
   const [sourcesReady, setSourcesReady] = useState(false);
+  const [fissures, setFissures] = useState<FarmFissure[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -102,6 +121,32 @@ export function FarmPlan({
     };
   }, [items]);
 
+  useEffect(() => {
+    const needsFissures = items.some((item) => item.parts.some((part) => part.relics.some((relic) => !relic.vaulted)));
+    if (!needsFissures) {
+      setFissures([]);
+      return;
+    }
+    let cancelled = false;
+    const load = () => {
+      void fetchFissures()
+        .then((next) => {
+          if (!cancelled) setFissures(next);
+        })
+        .catch(() => {
+          if (!cancelled) setFissures([]);
+        });
+    };
+    load();
+    const timer = window.setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [items]);
+
+  const routes = useMemo(() => buildRoutes(items, sources, fissures, collection.qty), [items, sources, fissures, collection.qty]);
+
   if (goals.length === 0) {
     return <p className="text-sm text-mute">En Marcar, pulsa Farmear en lo que te falte. Aquí queda el camino de cada plano.</p>;
   }
@@ -113,6 +158,39 @@ export function FarmPlan({
 
   return (
     <div className="flex flex-col gap-4">
+      {routes.length > 0 && (
+        <section className="rounded-2xl border border-gold/30 bg-panel p-4">
+          <h3 className="text-sm font-medium text-bone">Dónde cae ahora</h3>
+          <p className="mt-1 text-xs text-mute">Etapas y fisuras donde puede salir un plano de tu lista. Márcalo cuando te caiga.</p>
+          <ul className="mt-3 flex flex-col gap-3">
+            {routes.map((route) => (
+              <li key={route.key} className="rounded-xl border border-line/80 px-3 py-2">
+                <p className="text-sm text-bone">{route.title}</p>
+                <p className="text-xs text-mute">{route.detail}</p>
+                <ul className="mt-2 flex flex-col gap-2">
+                  {route.chances.map((chance) => {
+                    const label = names.part(chance.partId, chance.partTitle, chance.itemId, chance.itemName);
+                    return (
+                      <li key={`${route.key}-${chance.partId}`} className="flex flex-wrap items-center gap-2">
+                        {chance.image && <img src={chance.image} alt="" className="h-7 w-7 object-contain" />}
+                        <span className="min-w-0 flex-1 text-sm text-bone">{label}</span>
+                        <span className="text-xs text-mute">{chance.amount > 0 ? "en el inventario" : "posible drop"}</span>
+                        <button
+                          type="button"
+                          onClick={() => onPartQty(chance.partId, Math.min(99, chance.amount + 1))}
+                          className="rounded-full border border-gold px-2.5 py-1 text-xs text-gold hover:bg-gold/10"
+                        >
+                          Me cayó
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {items.map((item) => {
         const label = names.item(item.id, item.name);
         const done = built.has(item.id) || mastered.has(item.id);
@@ -142,17 +220,21 @@ export function FarmPlan({
                 const crafted = collection.crafted.includes(craftKey(item.id, part.id));
                 const finalPiece = part.short === "Plano" && item.parts.length > 1;
                 const pieceDone = finalPiece ? done : crafted;
+                const partLabel = names.part(part.id, part.title, item.id, item.name);
                 return (
                   <li key={part.id} className="rounded-xl border border-line/80 px-3 py-2">
                     <div className="flex flex-wrap items-center gap-2">
                       {part.image && <img src={part.image} alt="" className="h-8 w-8 object-contain" />}
-                      <span className="min-w-0 flex-1 text-sm text-bone">{names.part(part.id, part.title, item.id, item.name)}</span>
-                      <Count
-                        value={amount}
-                        label={names.part(part.id, part.title, item.id, item.name)}
-                        onChange={(next) => onPartQty(part.id, next)}
-                      />
+                      <span className="min-w-0 flex-1 text-sm text-bone">{partLabel}</span>
+                      <Count value={amount} label={partLabel} onChange={(next) => onPartQty(part.id, next)} />
                       <span className="text-xs text-mute">{amount > 0 ? "en el inventario" : "te falta el plano"}</span>
+                      <button
+                        type="button"
+                        onClick={() => onPartQty(part.id, Math.min(99, amount + 1))}
+                        className="rounded-full border border-gold px-2.5 py-1 text-xs text-gold hover:bg-gold/10"
+                      >
+                        Me cayó
+                      </button>
                       {part.materials.length > 0 && !finalPiece && (
                         <button
                           type="button"
@@ -169,6 +251,7 @@ export function FarmPlan({
                       wiki={sources[item.id]?.wiki ?? null}
                       offer={vendorOffer(part.english)}
                       pending={!sourcesReady && part.relics.length === 0}
+                      fissures={activeFissuresFor(part.relics, fissures)}
                     />
                     {part.materials.length > 0 && (
                       <div className="mt-2">
@@ -237,18 +320,27 @@ function SourceNote({
   wiki,
   offer,
   pending,
+  fissures,
 }: {
   relics: PartRelic[];
   source: { lines: string[]; market: string | null } | undefined;
   wiki: string | null;
   offer: string | null;
   pending: boolean;
+  fissures: FarmFissure[];
 }) {
   const buy = offer ? <p className="mt-1 text-xs text-gold">{relics.length > 0 || source?.lines.length || source?.market ? `O cómpralo ${offer}.` : `Cómpralo ${offer}.`}</p> : null;
+  const live =
+    fissures.length > 0 ? (
+      <p className="mt-1 text-xs text-gold">
+        Ahora: {fissures.map((fissure) => `${fissure.tier} · ${fissure.mission} en ${fissure.node} · ${fissure.timeLeft}`).join("  ·  ")}
+      </p>
+    ) : null;
   if (relics.length > 0) {
     return (
       <>
         <p className="mt-1 text-xs text-mute">{sourceLine(relics)}</p>
+        {live}
         {buy}
       </>
     );
@@ -291,6 +383,65 @@ function SourceNote({
       )}
     </p>
   );
+}
+
+function activeFissuresFor(relics: PartRelic[], fissures: FarmFissure[]) {
+  const eras = new Set(relics.filter((relic) => !relic.vaulted).map((relic) => relicEra(relic.name)).filter((era): era is string => Boolean(era)));
+  if (eras.size === 0) return [];
+  return fissures.filter((fissure) => [...eras].some((era) => fissureMatches(fissure.tier, era))).slice(0, 2);
+}
+
+function buildRoutes(
+  items: PlanItem[],
+  sources: Record<string, ItemSources>,
+  fissures: FarmFissure[],
+  qty: Record<string, number>,
+): DropRoute[] {
+  const byKey = new Map<string, DropRoute>();
+  for (const item of items) {
+    for (const part of item.parts) {
+      const amount = qty[part.id] ?? 0;
+      if (amount > 0) continue;
+      const finalPiece = part.short === "Plano" && item.parts.length > 1;
+      const source = partSource(sources[item.id], part.id, part.short, finalPiece);
+      const chance: DropChance = {
+        partId: part.id,
+        itemId: item.id,
+        itemName: item.name,
+        partTitle: part.title,
+        image: part.image,
+        amount,
+      };
+      for (const line of source?.lines ?? []) {
+        const key = `mission:${line}`;
+        const route = byKey.get(key) ?? {
+          key,
+          title: line.replace(/\s·\s\d+%$/, ""),
+          kind: "mission" as const,
+          detail: "posible drop de misión",
+          chances: [],
+        };
+        if (!route.chances.some((entry) => entry.partId === chance.partId)) route.chances.push(chance);
+        byKey.set(key, route);
+      }
+      for (const fissure of activeFissuresFor(part.relics, fissures)) {
+        const key = `fissure:${fissure.id}`;
+        const route = byKey.get(key) ?? {
+          key,
+          title: `${fissure.tier} · ${fissure.mission} en ${fissure.node}`,
+          kind: "fissure" as const,
+          detail: fissure.hard ? `Camino de acero · ${fissure.timeLeft}` : fissure.timeLeft,
+          chances: [],
+        };
+        if (!route.chances.some((entry) => entry.partId === chance.partId)) route.chances.push(chance);
+        byKey.set(key, route);
+      }
+    }
+  }
+  return [...byKey.values()]
+    .filter((route) => route.chances.length > 0)
+    .sort((left, right) => right.chances.length - left.chances.length || left.title.localeCompare(right.title, "es"))
+    .slice(0, 8);
 }
 
 function sourceLine(relics: PartRelic[]) {
